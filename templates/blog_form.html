@@ -2,13 +2,54 @@
 {% block title %}{{ "Edit" if mode == "edit" else "New" }} Post — Fresh Universe CMS{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
 <style>
-  #content-wrap { position: relative; }
+  .editor-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1c2333;
+    border: 1px solid var(--gray-4);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    padding: 6px 12px;
+  }
+  .editor-toolbar span {
+    font-size: 11px;
+    font-weight: 600;
+    color: #7a90b0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .editor-toolbar .toolbar-actions { display: flex; gap: 8px; align-items: center; }
+  .editor-toolbar button {
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #a0b4cc;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .editor-toolbar button:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  .editor-toolbar button.active-btn { background: rgba(0,74,173,0.5); color: #fff; border-color: rgba(0,74,173,0.6); }
+  .CodeMirror {
+    border: 1px solid var(--gray-4);
+    border-radius: 0 0 6px 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    height: auto;
+  }
+  .CodeMirror-focused { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,74,173,0.1); }
   #preview-pane {
     border: 1px solid var(--gray-4);
-    border-radius: 6px;
-    padding: 16px 20px;
-    min-height: 120px;
+    border-radius: 0 0 6px 6px;
+    padding: 20px 24px;
+    min-height: 200px;
     font-size: 14px;
     line-height: 1.8;
     background: var(--white);
@@ -16,21 +57,6 @@
     display: none;
   }
   #preview-pane.visible { display: block; }
-  .preview-toggle {
-    position: absolute;
-    top: 0;
-    right: 0;
-    font-size: 12px;
-    color: var(--blue);
-    cursor: pointer;
-    font-weight: 500;
-    background: none;
-    border: none;
-    padding: 0;
-    font-family: 'Inter', sans-serif;
-  }
-  .preview-toggle:hover { text-decoration: underline; }
-  /* render inner-thought spans in preview */
   #preview-pane .inner-thought { color: var(--gray-2); font-style: italic; }
 </style>
 {% endblock %}
@@ -41,7 +67,7 @@
   <a href="{{ url_for('blog') }}" class="btn btn-secondary">← Back</a>
 </div>
 
-<form method="POST">
+<form method="POST" id="main-form">
 
   <!-- Meta -->
   <div class="form-card" style="margin-bottom:24px;">
@@ -85,24 +111,24 @@
 
   <!-- Content -->
   <div class="form-card" style="margin-bottom:24px;">
-    <div id="content-wrap" style="position:relative;">
-      <p class="section-title" style="margin-bottom:20px;">Content
-        <button type="button" class="preview-toggle" id="preview-btn" onclick="togglePreview()">
-          Show preview
-        </button>
-      </p>
-      <div class="form-group" id="editor-group">
-        <textarea id="content" name="content" rows="20"
-                  style="font-family: 'Courier New', monospace; font-size:13px; line-height:1.7;"
-                  placeholder="HTML content — use &lt;p&gt;, &lt;br&gt;, &lt;h2&gt;, &lt;hr&gt;, &lt;i&gt;, &lt;span class=&quot;inner-thought&quot;&gt; etc.">{{ form.content or '' }}</textarea>
-        <p class="form-hint">
-          Supports full HTML. Use <code style="font-size:11px; background:#f0f0f0; padding:1px 4px; border-radius:3px;">&lt;br&gt;</code> for line breaks,
-          <code style="font-size:11px; background:#f0f0f0; padding:1px 4px; border-radius:3px;">&lt;hr&gt;</code> between pieces,
-          <code style="font-size:11px; background:#f0f0f0; padding:1px 4px; border-radius:3px;">&lt;span class="inner-thought"&gt;</code> for inner thoughts.
-        </p>
+    <p class="section-title" style="margin-bottom:16px;">Content</p>
+    <div class="editor-toolbar">
+      <span>HTML · indent-aware editor</span>
+      <div class="toolbar-actions">
+        <button type="button" id="preview-btn" onclick="togglePreview()">Show preview</button>
+        <button type="button" onclick="wrapSelection('<p>', '</p>')">p</button>
+        <button type="button" onclick="wrapSelection('<br>', '')">br</button>
+        <button type="button" onclick="wrapSelection('<i>', '</i>')">i</button>
+        <button type="button" onclick="wrapSelection('<strong>', '</strong>')">b</button>
+        <button type="button" onclick="wrapSelection('<span class=&quot;inner-thought&quot;>', '</span>')">thought</button>
+        <button type="button" onclick="insertText('<hr>\n')">hr</button>
       </div>
-      <div id="preview-pane"></div>
     </div>
+    <textarea id="content" name="content">{{ form.content or '' }}</textarea>
+    <div id="preview-pane"></div>
+    <p class="form-hint" style="margin-top:8px;">
+      Full HTML supported. Tab inserts 4 spaces. Ctrl+Z to undo. All indentation and whitespace is preserved exactly.
+    </p>
   </div>
 
   <div class="form-actions">
@@ -113,24 +139,79 @@
   </div>
 </form>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 <script>
-  let previewing = false;
+  const contentEditor = CodeMirror.fromTextArea(document.getElementById('content'), {
+    mode: 'htmlmixed',
+    theme: 'material-darker',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    lineWrapping: true,
+    styleActiveLine: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    extraKeys: {
+      "Tab": function(cm) { cm.replaceSelection("    ", "end"); }
+    }
+  });
+  contentEditor.setSize(null, 480);
 
+  // Sync editor value back to textarea on form submit
+  document.getElementById('main-form').addEventListener('submit', function() {
+    contentEditor.save();
+  });
+
+  // Preview toggle
+  let previewing = false;
   function togglePreview() {
-    const textarea = document.getElementById('content');
-    const pane     = document.getElementById('preview-pane');
-    const btn      = document.getElementById('preview-btn');
+    const pane = document.getElementById('preview-pane');
+    const btn  = document.getElementById('preview-btn');
     previewing = !previewing;
     if (previewing) {
-      pane.innerHTML = textarea.value;
+      contentEditor.save();
+      pane.innerHTML = document.getElementById('content').value;
       pane.classList.add('visible');
-      textarea.style.display = 'none';
+      contentEditor.getWrapperElement().style.display = 'none';
       btn.textContent = 'Edit';
+      btn.classList.add('active-btn');
     } else {
       pane.classList.remove('visible');
-      textarea.style.display = '';
+      contentEditor.getWrapperElement().style.display = '';
       btn.textContent = 'Show preview';
+      btn.classList.remove('active-btn');
     }
   }
+
+  // Wrap selection helper
+  function wrapSelection(open, close) {
+    const sel = contentEditor.getSelection();
+    contentEditor.replaceSelection(open + sel + close);
+  }
+
+  function insertText(text) {
+    const cur = contentEditor.getCursor();
+    contentEditor.replaceRange(text, cur);
+    contentEditor.focus();
+  }
+
+  // Auto-slug from title
+  const titleInput = document.getElementById('title');
+  const slugInput  = document.getElementById('slug');
+  titleInput.addEventListener('input', function() {
+    if (!slugInput.dataset.manual) {
+      slugInput.value = this.value.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+  });
+  slugInput.addEventListener('input', function() { this.dataset.manual = '1'; });
 </script>
 {% endblock %}

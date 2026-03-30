@@ -24,6 +24,10 @@ from r2_storage import (
     load_submissions_config, save_submissions_config,
     load_blog_page_config, save_blog_page_config,
     load_interviews_page_config, save_interviews_page_config,
+    _fetch_source,
+    _client,
+    R2_PROJECT_FOLDER,
+    R2_BUCKET_NAME,
 )
 
 app = Flask(__name__)
@@ -681,6 +685,100 @@ def page_interviews():
         flash("Interviews page header saved.", "success")
         return redirect(url_for("page_interviews"))
     return render_template("page_interviews.html", config=config)
+
+
+# ---------------------------------------------------------------------------
+# Source viewer/editor — read or edit raw .py files directly from R2
+# ---------------------------------------------------------------------------
+
+def _source_view(folder, slug_or_filename, back_route, editable=True):
+    """Shared logic: fetch R2 source, render source_editor.html."""
+    all_loaders = {
+        'blog': load_blog_posts_from_r2,
+        'interviews': load_interviews_from_r2,
+        'issues': load_issues_from_r2,
+    }
+    items = all_loaders[folder]()
+    # Match by slug first, then by _filename
+    item = next((i for i in items if i.get('slug') == slug_or_filename), None)
+    if not item:
+        item = next((i for i in items if i.get('_filename') == slug_or_filename), None)
+    if not item:
+        flash(f"Entry not found: {slug_or_filename}", "error")
+        return redirect(url_for(back_route))
+    filename = item.get('_filename') or (_slugify(item.get('title') or item.get('issue_name', '')) + '.py')
+    key = f"{R2_PROJECT_FOLDER}/{folder}/{filename}"
+    source = _fetch_source(key) or '# Source not found in R2'
+    return filename, key, source, item
+
+@app.route("/blog/<slug>/source", methods=["GET", "POST"])
+@login_required
+def blog_source(slug):
+    result = _source_view('blog', slug, 'blog')
+    if not isinstance(result, tuple):
+        return result
+    filename, key, source, item = result
+    if request.method == "POST":
+        new_source = request.form.get('source', '')
+        _client().put_object(
+            Bucket=R2_BUCKET_NAME, Key=key,
+            Body=new_source.encode('utf-8'), ContentType='text/x-python'
+        )
+        flash(f"Source saved to R2: {filename}", "success")
+        return redirect(url_for('blog_source', slug=slug))
+    return render_template('source_editor.html',
+        filename=filename,
+        filepath=key,
+        source=source,
+        back_url=url_for('blog'),
+        editable=True,
+    )
+
+@app.route("/interviews/<slug>/source", methods=["GET", "POST"])
+@login_required
+def interview_source(slug):
+    result = _source_view('interviews', slug, 'interviews')
+    if not isinstance(result, tuple):
+        return result
+    filename, key, source, item = result
+    if request.method == "POST":
+        new_source = request.form.get('source', '')
+        _client().put_object(
+            Bucket=R2_BUCKET_NAME, Key=key,
+            Body=new_source.encode('utf-8'), ContentType='text/x-python'
+        )
+        flash(f"Source saved to R2: {filename}", "success")
+        return redirect(url_for('interview_source', slug=slug))
+    return render_template('source_editor.html',
+        filename=filename,
+        filepath=key,
+        source=source,
+        back_url=url_for('interviews'),
+        editable=True,
+    )
+
+@app.route("/issues/<slug>/source", methods=["GET", "POST"])
+@login_required
+def issue_source(slug):
+    result = _source_view('issues', slug, 'issues')
+    if not isinstance(result, tuple):
+        return result
+    filename, key, source, item = result
+    if request.method == "POST":
+        new_source = request.form.get('source', '')
+        _client().put_object(
+            Bucket=R2_BUCKET_NAME, Key=key,
+            Body=new_source.encode('utf-8'), ContentType='text/x-python'
+        )
+        flash(f"Source saved to R2: {filename}", "success")
+        return redirect(url_for('issue_source', slug=slug))
+    return render_template('source_editor.html',
+        filename=filename,
+        filepath=key,
+        source=source,
+        back_url=url_for('issues'),
+        editable=True,
+    )
 
 
 if __name__ == "__main__":

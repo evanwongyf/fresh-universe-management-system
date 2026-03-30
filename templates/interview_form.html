@@ -2,8 +2,29 @@
 {% block title %}{{ "Edit" if mode == "edit" else "New" }} Interview — Fresh Universe CMS{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
 <style>
   .qa-list { margin-bottom: 16px; }
+  .CodeMirror {
+    border: 1px solid var(--gray-4);
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    height: auto;
+  }
+  .CodeMirror-focused { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,74,173,0.1); }
+  .answer-editor-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .answer-editor-label span {
+    font-size: 11px;
+    color: var(--gray-3);
+    font-style: italic;
+  }
 </style>
 {% endblock %}
 
@@ -66,8 +87,11 @@
                  placeholder="Enter the question">
         </div>
         <div class="form-group" style="margin-bottom:0;">
-          <label>Answer</label>
-          <textarea name="answer_{{ loop.index0 }}" rows="5"
+          <div class="answer-editor-label">
+            <label style="margin-bottom:0;">Answer</label>
+            <span>HTML supported · Tab = 4 spaces · Ctrl+Z to undo</span>
+          </div>
+          <textarea class="answer-cm" name="answer_{{ loop.index0 }}"
                     placeholder="Enter the answer">{{ q.answer or '' }}</textarea>
         </div>
       </div>
@@ -85,7 +109,45 @@
   </div>
 </form>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 <script>
+  // Track all CodeMirror instances keyed by textarea name
+  const cmInstances = {};
+
+  function initAnswerCM(textarea) {
+    const name = textarea.getAttribute('name');
+    if (cmInstances[name]) return; // already initialized
+    const cm = CodeMirror.fromTextArea(textarea, {
+      mode: 'htmlmixed',
+      theme: 'material-darker',
+      lineNumbers: true,
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: true,
+      styleActiveLine: true,
+      extraKeys: {
+        "Tab": function(cm) { cm.replaceSelection("    ", "end"); }
+      }
+    });
+    cm.setSize(null, 200);
+    cmInstances[name] = cm;
+  }
+
+  // Initialize all existing answer editors
+  document.querySelectorAll('.answer-cm').forEach(initAnswerCM);
+
+  // Save all CM instances back to textareas before submit
+  document.getElementById('interview-form').addEventListener('submit', function() {
+    Object.values(cmInstances).forEach(cm => cm.save());
+  });
+
   let qaCount = document.querySelectorAll('.qa-block').length;
 
   function addQA() {
@@ -102,27 +164,62 @@
         <input type="text" name="question_${idx}" placeholder="Enter the question">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label>Answer</label>
-        <textarea name="answer_${idx}" rows="5" placeholder="Enter the answer"></textarea>
+        <div class="answer-editor-label">
+          <label style="margin-bottom:0;">Answer</label>
+          <span>HTML supported · Tab = 4 spaces · Ctrl+Z to undo</span>
+        </div>
+        <textarea class="answer-cm" name="answer_${idx}" placeholder="Enter the answer"></textarea>
       </div>`;
     list.appendChild(block);
     qaCount++;
+    // Init CodeMirror on the new textarea
+    initAnswerCM(block.querySelector('textarea.answer-cm'));
     block.querySelector('input').focus();
     renumberQA();
   }
 
   function removeQA(btn) {
-    btn.closest('.qa-block').remove();
+    const block = btn.closest('.qa-block');
+    const name = block.querySelector('textarea.answer-cm')?.getAttribute('name');
+    if (name && cmInstances[name]) {
+      cmInstances[name].toTextArea();
+      delete cmInstances[name];
+    }
+    block.remove();
     renumberQA();
   }
 
   function renumberQA() {
     document.querySelectorAll('.qa-block').forEach((block, i) => {
       block.querySelector('.qa-num').textContent = `Q${i + 1}`;
-      block.querySelector('input[type="text"]').name  = `question_${i}`;
-      block.querySelector('textarea').name            = `answer_${i}`;
+      const qInput = block.querySelector('input[type="text"]');
+      const aTextarea = block.querySelector('textarea.answer-cm');
+      if (qInput) qInput.name = `question_${i}`;
+      if (aTextarea) {
+        const oldName = aTextarea.getAttribute('name');
+        const newName = `answer_${i}`;
+        if (oldName !== newName) {
+          // Move CM instance to new key
+          if (cmInstances[oldName]) {
+            cmInstances[newName] = cmInstances[oldName];
+            delete cmInstances[oldName];
+          }
+          aTextarea.setAttribute('name', newName);
+        }
+      }
     });
     qaCount = document.querySelectorAll('.qa-block').length;
   }
+
+  // Auto-slug from title
+  const titleInput = document.getElementById('title');
+  const slugInput  = document.getElementById('slug');
+  titleInput.addEventListener('input', function() {
+    if (!slugInput.dataset.manual) {
+      slugInput.value = this.value.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+  });
+  slugInput.addEventListener('input', function() { this.dataset.manual = '1'; });
 </script>
 {% endblock %}

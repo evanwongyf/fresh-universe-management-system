@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Source: {{ filename }} — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+<style>
+  .source-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1c2333;
+    border: 1px solid #2d3a50;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+  }
+  .source-header .filepath { font-family: monospace; font-size: 13px; color: #7a90b0; }
+  .source-header .source-actions { display: flex; gap: 8px; align-items: center; }
+  .source-header .badge-r2 {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    background: rgba(0,74,173,0.4); color: #7aadff;
+    padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+  }
+  .CodeMirror {
+    border: 1px solid #2d3a50; border-top: none;
+    border-radius: 0 0 8px 8px; font-size: 13px; line-height: 1.6; height: auto;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    R2 Source
+    <span style="font-weight:400; font-size:0.7em; color:var(--gray-2); margin-left:8px; font-family:monospace;">{{ filepath }}</span>
+  </h1>
+  <a href="{{ back_url }}" class="btn btn-secondary">← Back</a>
+</div>
+
+{% if editable %}
+<form method="POST" id="source-form">
+  <div class="source-header">
+    <div>
+      <span class="filepath">{{ filepath }}</span>
+      <span class="badge-r2" style="margin-left:10px;">R2 Live</span>
+    </div>
+    <div class="source-actions">
+      <span style="font-size:11px; color:#5a6a80;">Tab = 4 spaces &nbsp;·&nbsp; Ctrl+Z = undo &nbsp;·&nbsp; Ctrl+/ = toggle comment</span>
+      <button type="submit" class="btn btn-primary btn-sm">Save to R2</button>
+    </div>
+  </div>
+  <textarea id="source-ta" name="source">{{ source }}</textarea>
+</form>
+{% else %}
+<div class="source-header">
+  <div>
+    <span class="filepath">{{ filepath }}</span>
+    <span class="badge-r2" style="margin-left:10px;">R2 Live</span>
+  </div>
+  <div class="source-actions">
+    <span style="font-size:11px; color:#5a6a80;">Read-only view</span>
+  </div>
+</div>
+<textarea id="source-ta">{{ source }}</textarea>
+{% endif %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+<script>
+  const editor = CodeMirror.fromTextArea(document.getElementById('source-ta'), {
+    mode: 'python',
+    theme: 'material-darker',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    lineWrapping: false,
+    styleActiveLine: true,
+    matchBrackets: true,
+    autoCloseBrackets: {{ 'true' if editable else 'false' }},
+    readOnly: {{ 'false' if editable else "'nocursor'" }},
+    extraKeys: {
+      "Tab": function(cm) { cm.replaceSelection("    ", "end"); },
+      "Ctrl-/": "toggleComment",
+    }
+  });
+  const lineH = 19;
+  const lines = editor.lineCount();
+  editor.setSize(null, Math.max(500, Math.min(900, (lines + 5) * lineH)));
+  {% if editable %}
+  document.getElementById('source-form').addEventListener('submit', function() {
+    editor.save();
+  });
+  {% endif %}
+</script>
+{% endblock %}
