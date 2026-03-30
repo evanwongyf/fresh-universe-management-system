@@ -15,85 +15,106 @@
     <div class="label">Blog posts</div>
     <div class="value">{{ posts | length }}</div>
   </div>
+  <div class="stat-card">
+    <div class="label">Issues</div>
+    <div class="value">{{ issues | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Staff members</div>
+    <div class="value">{{ members | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Staff apps</div>
+    <div class="value" style="font-size:18px; padding-top:6px;">
+      {% if apps_config and apps_config.is_open %}
+        <span style="color:var(--green); font-weight:600;">Open</span>
+      {% else %}
+        <span style="color:var(--red); font-weight:600;">Closed</span>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
-<!-- Recent Interviews -->
-<div style="margin-bottom: 40px;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+<!-- Interviews -->
+<div style="margin-bottom:40px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
     <p class="section-title">Recent Interviews</p>
-    <a href="{{ url_for('interview_new') }}" class="btn btn-primary btn-sm">+ New interview</a>
+    <a href="{{ url_for('interview_new') }}" class="btn btn-primary btn-sm">+ New</a>
   </div>
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Category</th>
-          <th>Date</th>
-          <th></th>
-        </tr>
-      </thead>
+      <thead><tr><th>Title</th><th>Category</th><th>Date</th><th></th></tr></thead>
       <tbody>
-        {% for iv in interviews[:5] %}
+        {% for iv in interviews[:4] %}
         <tr>
           <td style="font-weight:500;">{{ iv.title }}</td>
           <td><span class="tag">{{ iv.category }}</span></td>
           <td style="color:var(--gray-2);">{{ iv.date }}</td>
-          <td style="text-align:right;">
-            <a href="{{ url_for('interview_edit', slug=iv.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
-          </td>
+          <td style="text-align:right;"><a href="{{ url_for('interview_edit', slug=iv.slug) }}" class="btn btn-secondary btn-sm">Edit</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="4" style="text-align:center; color:var(--gray-3); padding:32px;">No interviews yet.</td></tr>
+        <tr><td colspan="4" style="text-align:center;color:var(--gray-3);padding:24px;">None yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% if interviews | length > 5 %}
-  <p style="text-align:right; margin-top:10px;">
-    <a href="{{ url_for('interviews') }}" style="font-size:13px; color:var(--blue);">View all {{ interviews | length }} →</a>
-  </p>
-  {% endif %}
+  {% if interviews|length > 4 %}<p style="text-align:right;margin-top:8px;"><a href="{{ url_for('interviews') }}" style="font-size:13px;color:var(--blue);">View all {{ interviews|length }} →</a></p>{% endif %}
 </div>
 
-<!-- Recent Blog Posts -->
-<div>
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+<!-- Blog posts -->
+<div style="margin-bottom:40px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
     <p class="section-title">Recent Blog Posts</p>
-    <a href="{{ url_for('blog_new') }}" class="btn btn-primary btn-sm">+ New post</a>
+    <a href="{{ url_for('blog_new') }}" class="btn btn-primary btn-sm">+ New</a>
   </div>
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Author</th>
-          <th>Category</th>
-          <th>Date</th>
-          <th></th>
-        </tr>
-      </thead>
+      <thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Date</th><th></th></tr></thead>
       <tbody>
-        {% for post in posts[:5] %}
+        {% for post in posts[:4] %}
         <tr>
           <td style="font-weight:500;">{{ post.title }}</td>
           <td style="color:var(--gray-2);">{{ post.author }}</td>
           <td><span class="tag">{{ post.category }}</span></td>
           <td style="color:var(--gray-2);">{{ post.date }}</td>
-          <td style="text-align:right;">
-            <a href="{{ url_for('blog_edit', slug=post.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
-          </td>
+          <td style="text-align:right;"><a href="{{ url_for('blog_edit', slug=post.slug) }}" class="btn btn-secondary btn-sm">Edit</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="5" style="text-align:center; color:var(--gray-3); padding:32px;">No blog posts yet.</td></tr>
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-3);padding:24px;">None yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% if posts | length > 5 %}
-  <p style="text-align:right; margin-top:10px;">
-    <a href="{{ url_for('blog') }}" style="font-size:13px; color:var(--blue);">View all {{ posts | length }} →</a>
-  </p>
-  {% endif %}
+  {% if posts|length > 4 %}<p style="text-align:right;margin-top:8px;"><a href="{{ url_for('blog') }}" style="font-size:13px;color:var(--blue);">View all {{ posts|length }} →</a></p>{% endif %}
+</div>
+
+<!-- Issues -->
+<div style="margin-bottom:40px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <p class="section-title">Issues</p>
+    <a href="{{ url_for('issue_new') }}" class="btn btn-primary btn-sm">+ New</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Issue name</th><th>Date published</th><th></th></tr></thead>
+      <tbody>
+        {% for issue in issues %}
+        <tr>
+          <td style="font-weight:500;">{{ issue.issue_name }}</td>
+          <td style="color:var(--gray-2);">{{ issue.date_published }}</td>
+          <td style="text-align:right;"><a href="{{ url_for('issue_edit', slug=issue.slug) }}" class="btn btn-secondary btn-sm">Edit</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center;color:var(--gray-3);padding:24px;">None yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Quick links -->
+<div style="display:flex;gap:12px;flex-wrap:wrap;">
+  <a href="{{ url_for('masthead') }}" class="btn btn-secondary">Manage masthead ({{ members|length }} members)</a>
+  <a href="{{ url_for('staff_applications') }}" class="btn btn-secondary">Edit staff applications page</a>
 </div>
 {% endblock %}

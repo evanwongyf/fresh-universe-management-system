@@ -11,6 +11,13 @@ from r2_storage import (
     upload_blog_post_source,
     delete_interview,
     delete_blog_post,
+    load_issues_from_r2,
+    upload_issue_source,
+    delete_issue,
+    load_staff_from_r2,
+    save_staff_to_r2,
+    load_staff_applications_from_r2,
+    save_staff_applications_to_r2,
 )
 
 app = Flask(__name__)
@@ -104,9 +111,13 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    interviews = load_interviews_from_r2()
-    posts      = load_blog_posts_from_r2()
-    return render_template("dashboard.html", interviews=interviews, posts=posts)
+    interviews  = load_interviews_from_r2()
+    posts       = load_blog_posts_from_r2()
+    issues      = load_issues_from_r2()
+    members     = load_staff_from_r2()
+    apps_config = load_staff_applications_from_r2()
+    return render_template("dashboard.html", interviews=interviews, posts=posts,
+                           issues=issues, members=members, apps_config=apps_config)
 
 # ---------------------------------------------------------------------------
 # Interviews
@@ -321,6 +332,201 @@ def _render_blog_source(data):
         f'}}',
     ]
     return "\n".join(lines) + "\n"
+
+# ---------------------------------------------------------------------------
+# Issues
+# ---------------------------------------------------------------------------
+@app.route("/issues")
+@login_required
+def issues():
+    return render_template("issues.html", issues=load_issues_from_r2())
+
+@app.route("/issues/new", methods=["GET", "POST"])
+@login_required
+def issue_new():
+    if request.method == "POST":
+        data, error = _parse_issue_form(request.form)
+        if error:
+            flash(error, "error")
+            return render_template("issue_form.html", mode="new", form=request.form)
+        source = _render_issue_source(data)
+        filename = _slugify(data["issue_name"]) + ".py"
+        upload_issue_source(filename, source)
+        flash(f"Issue '{data['issue_name']}' saved.", "success")
+        return redirect(url_for("issues"))
+    return render_template("issue_form.html", mode="new", form={})
+
+@app.route("/issues/edit/<slug>", methods=["GET", "POST"])
+@login_required
+def issue_edit(slug):
+    all_issues = load_issues_from_r2()
+    issue = next((i for i in all_issues if i["slug"] == slug), None)
+    if not issue:
+        flash("Issue not found.", "error")
+        return redirect(url_for("issues"))
+    if request.method == "POST":
+        data, error = _parse_issue_form(request.form)
+        if error:
+            flash(error, "error")
+            return render_template("issue_form.html", mode="edit", form=request.form, issue=issue)
+        source = _render_issue_source(data)
+        filename = _slugify(data["issue_name"]) + ".py"
+        old_filename = issue.get("_filename") or (_slugify(issue["issue_name"]) + ".py")
+        if old_filename != filename:
+            delete_issue(old_filename)
+        upload_issue_source(filename, source)
+        flash(f"Issue '{data['issue_name']}' updated.", "success")
+        return redirect(url_for("issues"))
+    return render_template("issue_form.html", mode="edit", form=issue, issue=issue)
+
+@app.route("/issues/delete/<slug>", methods=["POST"])
+@login_required
+def issue_delete(slug):
+    all_issues = load_issues_from_r2()
+    issue = next((i for i in all_issues if i["slug"] == slug), None)
+    if issue:
+        filename = issue.get("_filename") or (_slugify(issue["issue_name"]) + ".py")
+        delete_issue(filename)
+        flash("Issue deleted.", "success")
+    return redirect(url_for("issues"))
+
+# ---------------------------------------------------------------------------
+# Masthead
+# ---------------------------------------------------------------------------
+@app.route("/masthead")
+@login_required
+def masthead():
+    return render_template("masthead.html", members=load_staff_from_r2())
+
+@app.route("/masthead/new", methods=["GET", "POST"])
+@login_required
+def masthead_new():
+    if request.method == "POST":
+        data, error = _parse_member_form(request.form)
+        if error:
+            flash(error, "error")
+            return render_template("masthead_form.html", mode="new", form=request.form)
+        members = load_staff_from_r2()
+        members.append(data)
+        save_staff_to_r2(members)
+        flash(f"'{data['name']}' added to masthead.", "success")
+        return redirect(url_for("masthead"))
+    return render_template("masthead_form.html", mode="new", form={})
+
+@app.route("/masthead/edit/<slug>", methods=["GET", "POST"])
+@login_required
+def masthead_edit(slug):
+    members = load_staff_from_r2()
+    member = next((m for m in members if m["slug"] == slug), None)
+    if not member:
+        flash("Member not found.", "error")
+        return redirect(url_for("masthead"))
+    if request.method == "POST":
+        data, error = _parse_member_form(request.form)
+        if error:
+            flash(error, "error")
+            return render_template("masthead_form.html", mode="edit", form=request.form, member=member)
+        updated = [data if m["slug"] == slug else m for m in members]
+        save_staff_to_r2(updated)
+        flash(f"'{data['name']}' updated.", "success")
+        return redirect(url_for("masthead"))
+    return render_template("masthead_form.html", mode="edit", form=member, member=member)
+
+@app.route("/masthead/delete/<slug>", methods=["POST"])
+@login_required
+def masthead_delete(slug):
+    members = load_staff_from_r2()
+    updated = [m for m in members if m["slug"] != slug]
+    save_staff_to_r2(updated)
+    flash("Member removed.", "success")
+    return redirect(url_for("masthead"))
+
+# ---------------------------------------------------------------------------
+# Staff Applications
+# ---------------------------------------------------------------------------
+_DEFAULT_APPS = {
+    "is_open": True,
+    "heading": "Staff Applications are currently open.",
+    "description": "We're looking for passionate individuals from all walks of life and of any nationality to join our team. Whether you're a writer, editor, designer, or social media enthusiast, we have a role for you. Experience is appreciated, but not compulsory.",
+    "apply_link": "https://forms.gle/AsbyCx5SxpXANpNBA",
+    "roles": [
+        {"name": "Literary Editors", "description": "Literary Editors review and edit written submissions, ensuring clarity, coherence, and alignment with our magazine's vision."},
+        {"name": "Media Editors", "description": "Media Editors oversee visual and multimedia content, including artwork, photography, and videos."},
+        {"name": "Graphic Designers", "description": "Graphic Designers create visual assets for our magazine and digital platforms."},
+        {"name": "Staff Writers", "description": "Staff Writers produce original written content for our magazine and blog."},
+        {"name": "Staff Artists", "description": "Staff Artists contribute original artwork to accompany articles."},
+        {"name": "Outreach Managers", "description": "Outreach Managers build partnerships and expand our magazine's reach."},
+        {"name": "Interviewers", "description": "Interviewers conduct engaging interviews with artists, writers, and creatives."},
+        {"name": "Social Media Managers", "description": "Social Media Managers handle our online presence across platforms."},
+        {"name": "Blog Managers", "description": "Blog Managers oversee our blog, coordinating with writers to publish regular posts."},
+        {"name": "Email Managers", "description": "Email Managers handle our email communications and newsletters."},
+        {"name": "Reel Creators", "description": "Reel Creators produce short, engaging video content for our social media platforms."},
+    ],
+}
+
+@app.route("/staff-applications", methods=["GET", "POST"])
+@login_required
+def staff_applications():
+    config = load_staff_applications_from_r2() or _DEFAULT_APPS
+    if request.method == "POST":
+        is_open = request.form.get("is_open") == "1"
+        heading     = request.form.get("heading", "").strip()
+        description = request.form.get("description", "").strip()
+        apply_link  = request.form.get("apply_link", "").strip()
+        roles = []
+        i = 0
+        while True:
+            name = request.form.get(f"role_name_{i}", "").strip()
+            desc = request.form.get(f"role_desc_{i}", "").strip()
+            if not name and not desc:
+                break
+            if name:
+                roles.append({"name": name, "description": desc})
+            i += 1
+        config = {"is_open": is_open, "heading": heading, "description": description,
+                  "apply_link": apply_link, "roles": roles}
+        save_staff_applications_to_r2(config)
+        flash("Staff applications page updated.", "success")
+        return redirect(url_for("staff_applications"))
+    return render_template("staff_applications.html", config=config)
+
+# ---------------------------------------------------------------------------
+# Issue / member form helpers
+# ---------------------------------------------------------------------------
+def _parse_issue_form(form):
+    issue_name   = form.get("issue_name", "").strip()
+    slug         = form.get("slug", "").strip() or _slugify(issue_name)
+    date_pub     = form.get("date_published", "").strip()
+    description  = form.get("description", "").strip()
+    staff        = form.get("staff", "").strip()
+    statistics   = form.get("statistics", "").strip()
+    if not issue_name: return None, "Issue name is required."
+    if not date_pub:   return None, "Date is required."
+    return {"issue_name": issue_name, "slug": slug, "date_published": date_pub,
+            "description": description, "staff": staff, "statistics": statistics}, None
+
+def _render_issue_source(data):
+    import json
+    return f"""issue = {{
+    "slug": {json.dumps(data["slug"])},
+    "issue_name": {json.dumps(data["issue_name"])},
+    "date_published": {json.dumps(data["date_published"])},
+    "description": {json.dumps(data["description"])},
+    "staff": {json.dumps(data["staff"])},
+    "statistics": {json.dumps(data["statistics"])},
+}}
+"""
+
+def _parse_member_form(form):
+    name  = form.get("name", "").strip()
+    slug  = form.get("slug", "").strip() or _slugify(name)
+    role  = form.get("role", "").strip()
+    image = form.get("image", "").strip()
+    bio   = form.get("bio", "").strip()
+    if not name: return None, "Name is required."
+    if not role: return None, "Role is required."
+    return {"name": name, "slug": slug, "role": role, "image": image, "bio": bio}, None
+
 
 if __name__ == "__main__":
     ensure_project_folder()

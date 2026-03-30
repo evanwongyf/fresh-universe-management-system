@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Masthead — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Masthead</h1>
+  <a href="{{ url_for('masthead_new') }}" class="btn btn-primary">+ Add member</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Role</th>
+        <th>Slug</th>
+        <th>Image URL</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in members %}
+      <tr>
+        <td style="font-weight:500;">
+          {% if m.image %}
+          <img src="{{ m.image }}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;margin-right:8px;vertical-align:middle;">
+          {% endif %}
+          {{ m.name }}
+        </td>
+        <td><span class="tag">{{ m.role }}</span></td>
+        <td style="color:var(--gray-2); font-size:12px;">{{ m.slug }}</td>
+        <td style="color:var(--gray-3); font-size:11px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          {{ m.image or '—' }}
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          <a href="{{ url_for('masthead_edit', slug=m.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('masthead_delete', slug=m.slug) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Remove {{ m.name }} from the masthead?')">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center; color:var(--gray-3); padding:48px;">
+          No staff members yet. <a href="{{ url_for('masthead_new') }}" style="color:var(--blue);">Add one →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

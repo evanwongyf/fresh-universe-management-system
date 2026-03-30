@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Issues — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Issues</h1>
+  <a href="{{ url_for('issue_new') }}" class="btn btn-primary">+ New issue</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Issue name</th>
+        <th>Slug</th>
+        <th>Date published</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for issue in issues %}
+      <tr>
+        <td style="font-weight:500;">{{ issue.issue_name }}</td>
+        <td style="color:var(--gray-2); font-size:12px;">{{ issue.slug }}</td>
+        <td style="color:var(--gray-2);">{{ issue.date_published }}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <a href="{{ url_for('issue_edit', slug=issue.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('issue_delete', slug=issue.slug) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Delete this issue? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" style="text-align:center; color:var(--gray-3); padding:48px;">
+          No issues yet. <a href="{{ url_for('issue_new') }}" style="color:var(--blue);">Create one →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

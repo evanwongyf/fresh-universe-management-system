@@ -310,6 +310,9 @@
       <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
       <a href="{{ url_for('interviews') }}" {% if 'interview' in request.endpoint %}class="active"{% endif %}>Interviews</a>
       <a href="{{ url_for('blog') }}" {% if 'blog' in request.endpoint %}class="active"{% endif %}>Blog</a>
+      <a href="{{ url_for('issues') }}" {% if 'issue' in request.endpoint %}class="active"{% endif %}>Issues</a>
+      <a href="{{ url_for('masthead') }}" {% if 'masthead' in request.endpoint %}class="active"{% endif %}>Masthead</a>
+      <a href="{{ url_for('staff_applications') }}" {% if request.endpoint == 'staff_applications' %}class="active"{% endif %}>Staff Apps</a>
       <span class="nav-user">{{ session.user }}</span>
       <a href="{{ url_for('logout') }}">Log out</a>
     </div>

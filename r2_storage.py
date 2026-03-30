@@ -136,3 +136,100 @@ def delete_blog_post(filename):
     key = f"{R2_PROJECT_FOLDER}/blog/{filename}"
     _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
     logger.info("Deleted blog post: %s", key)
+
+# ---------------------------------------------------------------------------
+# Issues — one .py file per issue, variable name: issue
+# ---------------------------------------------------------------------------
+def load_issues_from_r2():
+    from datetime import datetime
+    prefix = f"{R2_PROJECT_FOLDER}/issues/"
+    results = []
+    for key in _list_keys(prefix):
+        source = _fetch_source(key)
+        if source is None:
+            continue
+        data = _exec_py_source(source, "issue", key)
+        if isinstance(data, dict):
+            data["_filename"] = key.split("/")[-1]
+            results.append(data)
+    results.sort(key=lambda x: datetime.strptime(x["date_published"].replace(" ", ""), "%d/%m/%y"), reverse=True)
+    return results
+
+def upload_issue_source(filename, source):
+    key = f"{R2_PROJECT_FOLDER}/issues/{filename}"
+    _client().put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=source.encode("utf-8"), ContentType="text/x-python")
+    logger.info("Uploaded issue: %s", key)
+
+def delete_issue(filename):
+    key = f"{R2_PROJECT_FOLDER}/issues/{filename}"
+    _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+    logger.info("Deleted issue: %s", key)
+
+# ---------------------------------------------------------------------------
+# Staff members — one JSON-like .py file, variable name: staff_members (list)
+# Stored as a single file: staff/members.py
+# ---------------------------------------------------------------------------
+STAFF_KEY = f"{{project}}/staff/members.py"  # formatted at call time
+
+def _staff_key():
+    return f"{R2_PROJECT_FOLDER}/staff/members.py"
+
+def load_staff_from_r2():
+    source = _fetch_source(_staff_key())
+    if source is None:
+        return []
+    data = _exec_py_source(source, "staff_members", _staff_key())
+    return data if isinstance(data, list) else []
+
+def save_staff_to_r2(staff_members):
+    import json
+    lines = ["staff_members = ["]
+    for m in staff_members:
+        lines.append("    {")
+        for k, v in m.items():
+            if k.startswith("_"):
+                continue
+            lines.append(f"        {json.dumps(k)}: {json.dumps(v)},")
+        lines.append("    },")
+    lines.append("]")
+    source = "\n".join(lines) + "\n"
+    _client().put_object(Bucket=R2_BUCKET_NAME, Key=_staff_key(), Body=source.encode("utf-8"), ContentType="text/x-python")
+    logger.info("Saved staff members to R2")
+
+# ---------------------------------------------------------------------------
+# Staff applications page — single config file
+# Variable name: staff_applications (dict)
+# Stored as: staff/applications.py
+# ---------------------------------------------------------------------------
+def _apps_key():
+    return f"{R2_PROJECT_FOLDER}/staff/applications.py"
+
+def load_staff_applications_from_r2():
+    source = _fetch_source(_apps_key())
+    if source is None:
+        return None
+    data = _exec_py_source(source, "staff_applications", _apps_key())
+    return data if isinstance(data, dict) else None
+
+def save_staff_applications_to_r2(config):
+    import json
+    roles = config.get("roles", [])
+    role_lines = []
+    for r in roles:
+        role_lines.append("        {")
+        role_lines.append(f"            \"name\": {json.dumps(r['name'])},")
+        role_lines.append(f"            \"description\": {json.dumps(r['description'])},")
+        role_lines.append("        },")
+    roles_block = "\n".join(role_lines)
+    source = f"""staff_applications = {{
+    "is_open": {json.dumps(config.get("is_open", True))},
+    "heading": {json.dumps(config.get("heading", ""))},
+    "description": {json.dumps(config.get("description", ""))},
+    "apply_link": {json.dumps(config.get("apply_link", ""))},
+    "roles": [
+{roles_block}
+    ],
+}}
+"""
+    _client().put_object(Bucket=R2_BUCKET_NAME, Key=_apps_key(), Body=source.encode("utf-8"), ContentType="text/x-python")
+    logger.info("Saved staff applications config to R2")
