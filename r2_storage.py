@@ -233,3 +233,61 @@ def save_staff_applications_to_r2(config):
 """
     _client().put_object(Bucket=R2_BUCKET_NAME, Key=_apps_key(), Body=source.encode("utf-8"), ContentType="text/x-python")
     logger.info("Saved staff applications config to R2")
+
+# ---------------------------------------------------------------------------
+# Generic single-dict site config helper
+# All site/* files store a single Python dict with a known variable name.
+# ---------------------------------------------------------------------------
+def _load_site_config(filename, varname):
+    key = f"{R2_PROJECT_FOLDER}/site/{filename}"
+    source = _fetch_source(key)
+    if source is None:
+        return None
+    return _exec_py_source(source, varname, key)
+
+def _save_site_config(filename, varname, data):
+    import json
+    key = f"{R2_PROJECT_FOLDER}/site/{filename}"
+    lines = [f"{varname} = {{"]
+    for k, v in data.items():
+        lines.append(f"    {json.dumps(k)}: {json.dumps(v)},")
+    lines.append("}")
+    source = "\n".join(lines) + "\n"
+    _client().put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=source.encode("utf-8"), ContentType="text/x-python")
+    logger.info("Saved site config: %s", key)
+
+# Site Settings (footer, social, contact email)
+def load_site_settings():
+    return _load_site_config("settings.py", "site_settings")
+def save_site_settings(data):
+    _save_site_config("settings.py", "site_settings", data)
+
+# Home page
+def load_home_config():
+    return _load_site_config("home.py", "home_config")
+def save_home_config(data):
+    _save_site_config("home.py", "home_config", data)
+
+# About Us page
+def load_about_config():
+    return _load_site_config("about.py", "about_config")
+def save_about_config(data):
+    _save_site_config("about.py", "about_config", data)
+
+# Submissions page
+def load_submissions_config():
+    return _load_site_config("submissions.py", "submissions_config")
+def save_submissions_config(data):
+    _save_site_config("submissions.py", "submissions_config", data)
+
+# Blog page header
+def load_blog_page_config():
+    return _load_site_config("blog_page.py", "blog_page_config")
+def save_blog_page_config(data):
+    _save_site_config("blog_page.py", "blog_page_config", data)
+
+# Interviews page header
+def load_interviews_page_config():
+    return _load_site_config("interviews_page.py", "interviews_page_config")
+def save_interviews_page_config(data):
+    _save_site_config("interviews_page.py", "interviews_page_config", data)

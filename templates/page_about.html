@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}About Us Page — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>About Us page</h1>
+</div>
+
+<form method="POST">
+  <div class="form-card">
+    <p class="section-title" style="margin-bottom:20px;">Content</p>
+    <div class="form-group">
+      <label for="heading">Heading</label>
+      <input type="text" id="heading" name="heading"
+             value="{{ config.heading or '' }}" placeholder="A canvas of fresh voices">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="6"
+                placeholder="About the magazine…">{{ config.description or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </div>
+</form>
+{% endblock %}

@@ -18,6 +18,12 @@ from r2_storage import (
     save_staff_to_r2,
     load_staff_applications_from_r2,
     save_staff_applications_to_r2,
+    load_site_settings, save_site_settings,
+    load_home_config, save_home_config,
+    load_about_config, save_about_config,
+    load_submissions_config, save_submissions_config,
+    load_blog_page_config, save_blog_page_config,
+    load_interviews_page_config, save_interviews_page_config,
 )
 
 app = Flask(__name__)
@@ -526,6 +532,155 @@ def _parse_member_form(form):
     if not name: return None, "Name is required."
     if not role: return None, "Role is required."
     return {"name": name, "slug": slug, "role": role, "image": image, "bio": bio}, None
+
+
+# ---------------------------------------------------------------------------
+# Site Settings
+# ---------------------------------------------------------------------------
+_DEFAULT_SETTINGS = {
+    "instagram_url": "https://www.instagram.com/freshuniverse.mag",
+    "contact_email": "freshuniversemagazine@gmail.com",
+    "footer_brand": "Fresh Universe",
+}
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def site_settings():
+    config = load_site_settings() or _DEFAULT_SETTINGS
+    if request.method == "POST":
+        config = {
+            "instagram_url": request.form.get("instagram_url", "").strip(),
+            "contact_email": request.form.get("contact_email", "").strip(),
+            "footer_brand":  request.form.get("footer_brand", "").strip(),
+        }
+        save_site_settings(config)
+        flash("Site settings saved.", "success")
+        return redirect(url_for("site_settings"))
+    return render_template("site_settings.html", config=config)
+
+# ---------------------------------------------------------------------------
+# Home page
+# ---------------------------------------------------------------------------
+_DEFAULT_HOME = {
+    "welcome_heading": "Welcome",
+    "welcome_text": "Fresh Universe Magazine is a vibrant platform dedicated to showcasing the creative talents of all ages and nationalities. We publish original works of literature, art, photography, and pretty much anything remotely creative! We provide an all-encompassing space for emerging and established creators to share their voices with the world. Our mission is to inspire, connect, and empower creatives through a supportive and inclusive community.",
+    "banner_items": "Literature,Art,Photography,Music,Experimental,Everything",
+}
+
+@app.route("/pages/home", methods=["GET", "POST"])
+@login_required
+def page_home():
+    config = load_home_config() or _DEFAULT_HOME
+    if request.method == "POST":
+        config = {
+            "welcome_heading": request.form.get("welcome_heading", "").strip(),
+            "welcome_text":    request.form.get("welcome_text", "").strip(),
+            "banner_items":    request.form.get("banner_items", "").strip(),
+        }
+        save_home_config(config)
+        flash("Home page saved.", "success")
+        return redirect(url_for("page_home"))
+    return render_template("page_home.html", config=config)
+
+# ---------------------------------------------------------------------------
+# About Us page
+# ---------------------------------------------------------------------------
+_DEFAULT_ABOUT = {
+    "heading":     "A canvas of fresh voices",
+    "description": "Fresh Universe Magazine is a vibrant platform dedicated to showcasing the creative talents of individuals from all walks of life, everywhere! We publish original works of literature, art, photography, experimental work, and other media types. We hope to provide a space for emerging creators to share their voices with the world. Our mission is to inspire, connect, and empower the next generation of artists and storytellers through a supportive and inclusive community.",
+}
+
+@app.route("/pages/about", methods=["GET", "POST"])
+@login_required
+def page_about():
+    config = load_about_config() or _DEFAULT_ABOUT
+    if request.method == "POST":
+        config = {
+            "heading":     request.form.get("heading", "").strip(),
+            "description": request.form.get("description", "").strip(),
+        }
+        save_about_config(config)
+        flash("About Us page saved.", "success")
+        return redirect(url_for("page_about"))
+    return render_template("page_about.html", config=config)
+
+# ---------------------------------------------------------------------------
+# Submissions page
+# ---------------------------------------------------------------------------
+_DEFAULT_SUBMISSIONS = {
+    "is_open":     True,
+    "heading":     "'Issue 2: Bittersweet Blossoms' is OPEN",
+    "description": "Submissions for our second issue, \"Bittersweet Blossoms\" are open! We accept anything creative, with a maximum of 5 submissions for each individual. Please click on the button to access our submission form! We look forward to seeing your submissions!",
+    "form_url":    "https://docs.google.com/forms/d/e/1FAIpQLSe7VdYUW2mfKJSXzgqajt5Wu6sqW3-o6jVICCLX4dNeM3KNeg/viewform?usp=dialog",
+    "closed_heading":     "Issue submissions are currently closed.",
+    "closed_description": "We're currently paused on accepting submissions for our quarterly issues. Please do consider submitting to our lovely fresh blog in the meantime, or booking an artist interview with us if it interests you!",
+}
+
+@app.route("/pages/submissions", methods=["GET", "POST"])
+@login_required
+def page_submissions():
+    config = load_submissions_config() or _DEFAULT_SUBMISSIONS
+    if request.method == "POST":
+        config = {
+            "is_open":            request.form.get("is_open") == "1",
+            "heading":            request.form.get("heading", "").strip(),
+            "description":        request.form.get("description", "").strip(),
+            "form_url":           request.form.get("form_url", "").strip(),
+            "closed_heading":     request.form.get("closed_heading", "").strip(),
+            "closed_description": request.form.get("closed_description", "").strip(),
+        }
+        save_submissions_config(config)
+        flash("Submissions page saved.", "success")
+        return redirect(url_for("page_submissions"))
+    return render_template("page_submissions.html", config=config)
+
+# ---------------------------------------------------------------------------
+# Blog page header
+# ---------------------------------------------------------------------------
+_DEFAULT_BLOG_PAGE = {
+    "heading":     "Blog submissions are open all year round.",
+    "description": "We're actively seeking works from creators of all ages and nationalities to feature on our all-encompassing fresh blog! We welcome original Literature, Art, Photography, Experimental Work and other media types. Please submit a new form for each piece!",
+    "form_url":    "https://docs.google.com/forms/d/e/1FAIpQLScEvU2fPNtD6t7sfV1XRj90IBXq-6qYQX4oqijHf0j9zEv8iw/viewform?usp=header",
+}
+
+@app.route("/pages/blog", methods=["GET", "POST"])
+@login_required
+def page_blog():
+    config = load_blog_page_config() or _DEFAULT_BLOG_PAGE
+    if request.method == "POST":
+        config = {
+            "heading":     request.form.get("heading", "").strip(),
+            "description": request.form.get("description", "").strip(),
+            "form_url":    request.form.get("form_url", "").strip(),
+        }
+        save_blog_page_config(config)
+        flash("Blog page header saved.", "success")
+        return redirect(url_for("page_blog"))
+    return render_template("page_blog.html", config=config)
+
+# ---------------------------------------------------------------------------
+# Interviews page header
+# ---------------------------------------------------------------------------
+_DEFAULT_INTERVIEWS_PAGE = {
+    "heading":     "Fresh interviews with international talents",
+    "description": "We're excited to share conversations with creators in literature, art, music, and film, showcasing their unique voices and creative journeys.",
+    "form_url":    "",
+}
+
+@app.route("/pages/interviews", methods=["GET", "POST"])
+@login_required
+def page_interviews():
+    config = load_interviews_page_config() or _DEFAULT_INTERVIEWS_PAGE
+    if request.method == "POST":
+        config = {
+            "heading":     request.form.get("heading", "").strip(),
+            "description": request.form.get("description", "").strip(),
+            "form_url":    request.form.get("form_url", "").strip(),
+        }
+        save_interviews_page_config(config)
+        flash("Interviews page header saved.", "success")
+        return redirect(url_for("page_interviews"))
+    return render_template("page_interviews.html", config=config)
 
 
 if __name__ == "__main__":

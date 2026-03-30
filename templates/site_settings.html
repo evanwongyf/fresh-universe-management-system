@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Site Settings — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Site Settings</h1>
+</div>
+
+<form method="POST">
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Footer &amp; contact</p>
+    <div class="form-group">
+      <label for="footer_brand">Footer brand name</label>
+      <input type="text" id="footer_brand" name="footer_brand"
+             value="{{ config.footer_brand or '' }}" placeholder="Fresh Universe">
+    </div>
+    <div class="form-group">
+      <label for="contact_email">Contact / footer email</label>
+      <input type="text" id="contact_email" name="contact_email"
+             value="{{ config.contact_email or '' }}" placeholder="freshuniversemagazine@gmail.com">
+      <p class="form-hint">Shown in footer and contact page</p>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="instagram_url">Instagram URL</label>
+      <input type="text" id="instagram_url" name="instagram_url"
+             value="{{ config.instagram_url or '' }}" placeholder="https://www.instagram.com/freshuniverse.mag">
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save settings</button>
+  </div>
+</form>
+{% endblock %}

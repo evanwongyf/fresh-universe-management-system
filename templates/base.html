@@ -71,6 +71,32 @@
       font-size: 12px;
       margin-right: 4px;
     }
+    .nav-dropdown { position: relative; }
+    .nav-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: var(--white);
+      border: 1px solid var(--gray-4);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      min-width: 180px;
+      z-index: 200;
+      overflow: hidden;
+    }
+    .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+    .nav-dropdown-menu a {
+      display: block;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-1);
+      text-decoration: none;
+      border-radius: 0;
+      background: none;
+    }
+    .nav-dropdown-menu a:hover { background: var(--off-white); color: var(--blue); }
 
     /* ── Layout ── */
     .container {
@@ -313,6 +339,17 @@
       <a href="{{ url_for('issues') }}" {% if 'issue' in request.endpoint %}class="active"{% endif %}>Issues</a>
       <a href="{{ url_for('masthead') }}" {% if 'masthead' in request.endpoint %}class="active"{% endif %}>Masthead</a>
       <a href="{{ url_for('staff_applications') }}" {% if request.endpoint == 'staff_applications' %}class="active"{% endif %}>Staff Apps</a>
+      <div class="nav-dropdown">
+        <a href="#" {% if 'page_' in request.endpoint %}class="active"{% endif %}>Pages ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="{{ url_for('page_home') }}">Home</a>
+          <a href="{{ url_for('page_about') }}">About Us</a>
+          <a href="{{ url_for('page_blog') }}">Blog header</a>
+          <a href="{{ url_for('page_interviews') }}">Interviews header</a>
+          <a href="{{ url_for('page_submissions') }}">Submissions</a>
+        </div>
+      </div>
+      <a href="{{ url_for('site_settings') }}" {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>
       <span class="nav-user">{{ session.user }}</span>
       <a href="{{ url_for('logout') }}">Log out</a>
     </div>

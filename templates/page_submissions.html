@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Submissions Page — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .tab-group { display:flex; gap:8px; margin-bottom:24px; }
+  .tab { padding:8px 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:1px solid var(--gray-4); background:var(--white); color:var(--gray-2); transition:all 0.15s; }
+  .tab.active { background:var(--blue); color:var(--white); border-color:var(--blue); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Submissions page</h1>
+</div>
+
+<form method="POST">
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Status</p>
+    <div style="display:flex;gap:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:400;text-transform:none;letter-spacing:0;">
+        <input type="radio" name="is_open" value="1" {% if config.is_open %}checked{% endif %}>
+        <span style="color:var(--green);font-weight:600;">● Open</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:400;text-transform:none;letter-spacing:0;">
+        <input type="radio" name="is_open" value="0" {% if not config.is_open %}checked{% endif %}>
+        <span style="color:var(--red);font-weight:600;">● Closed</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="tab-group">
+    <button type="button" class="tab active" onclick="showTab('open')">When open</button>
+    <button type="button" class="tab" onclick="showTab('closed')">When closed</button>
+  </div>
+
+  <div id="tab-open" class="tab-panel active">
+    <div class="form-card" style="margin-bottom:24px;">
+      <p class="section-title" style="margin-bottom:20px;">Open state content</p>
+      <div class="form-group">
+        <label for="heading">Heading</label>
+        <input type="text" id="heading" name="heading"
+               value="{{ config.heading or '' }}"
+               placeholder="'Issue 2: …' is OPEN">
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="4"
+                  placeholder="Submissions are open…">{{ config.description or '' }}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="form_url">Google Form URL</label>
+        <input type="text" id="form_url" name="form_url"
+               value="{{ config.form_url or '' }}" placeholder="https://docs.google.com/forms/…">
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-closed" class="tab-panel">
+    <div class="form-card" style="margin-bottom:24px;">
+      <p class="section-title" style="margin-bottom:20px;">Closed state content</p>
+      <div class="form-group">
+        <label for="closed_heading">Heading</label>
+        <input type="text" id="closed_heading" name="closed_heading"
+               value="{{ config.closed_heading or '' }}"
+               placeholder="Issue submissions are currently closed.">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="closed_description">Description</label>
+        <textarea id="closed_description" name="closed_description" rows="4"
+                  placeholder="Submissions are closed…">{{ config.closed_description or '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </div>
+</form>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+{% endblock %}

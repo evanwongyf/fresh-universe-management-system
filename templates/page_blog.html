@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Blog Page Header — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Blog page header</h1>
+</div>
+
+<form method="POST">
+  <div class="form-card">
+    <p class="section-title" style="margin-bottom:20px;">Content</p>
+    <div class="form-group">
+      <label for="heading">Heading</label>
+      <input type="text" id="heading" name="heading"
+             value="{{ config.heading or '' }}"
+             placeholder="Blog submissions are open all year round.">
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="4"
+                placeholder="We're actively seeking works…">{{ config.description or '' }}</textarea>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="form_url">Submit Here link (Google Form URL)</label>
+      <input type="text" id="form_url" name="form_url"
+             value="{{ config.form_url or '' }}" placeholder="https://docs.google.com/forms/…">
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </div>
+</form>
+{% endblock %}
