@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if mode == "edit" else "New" }} Interview — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .qa-list { margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ "Edit interview" if mode == "edit" else "New interview" }}</h1>
+  <a href="{{ url_for('interviews') }}" class="btn btn-secondary">← Back</a>
+</div>
+
+<form method="POST" id="interview-form">
+
+  <!-- Meta -->
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Details</p>
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" value="{{ form.title or '' }}"
+             placeholder="Artist Interview with …" autofocus>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="slug">Slug</label>
+        <input type="text" id="slug" name="slug" value="{{ form.slug or '' }}"
+               placeholder="auto-generated from title">
+        <p class="form-hint">Leave blank to auto-generate</p>
+      </div>
+      <div class="form-group">
+        <label for="iv_id">ID</label>
+        <input type="text" id="iv_id" name="iv_id" value="{{ form.id or '' }}"
+               placeholder="e.g. interview6">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="category">Category</label>
+        <input type="text" id="category" name="category" value="{{ form.category or '' }}"
+               placeholder="e.g. Writer Spotlight">
+      </div>
+      <div class="form-group">
+        <label for="date">Date <span style="font-weight:400;text-transform:none;letter-spacing:0;">(DD/MM/YY)</span></label>
+        <input type="text" id="date" name="date" value="{{ form.date or '' }}"
+               placeholder="8/1/25">
+      </div>
+    </div>
+  </div>
+
+  <!-- Q&A -->
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Questions &amp; Answers</p>
+
+    <div class="qa-list" id="qa-list">
+      {% set questions = form.questions_json if form.questions_json is defined else (form.questions or []) %}
+      {% for q in questions %}
+      <div class="qa-block" data-index="{{ loop.index0 }}">
+        <div class="qa-num">Q{{ loop.index }}</div>
+        <button type="button" class="qa-remove" onclick="removeQA(this)" title="Remove">×</button>
+        <div class="form-group">
+          <label>Question</label>
+          <input type="text" name="question_{{ loop.index0 }}" value="{{ q.question or '' }}"
+                 placeholder="Enter the question">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Answer</label>
+          <textarea name="answer_{{ loop.index0 }}" rows="5"
+                    placeholder="Enter the answer">{{ q.answer or '' }}</textarea>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button type="button" class="btn btn-secondary" onclick="addQA()">+ Add question</button>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+      {{ "Save changes" if mode == "edit" else "Create interview" }}
+    </button>
+    <a href="{{ url_for('interviews') }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<script>
+  let qaCount = document.querySelectorAll('.qa-block').length;
+
+  function addQA() {
+    const list = document.getElementById('qa-list');
+    const idx  = qaCount;
+    const block = document.createElement('div');
+    block.className = 'qa-block';
+    block.dataset.index = idx;
+    block.innerHTML = `
+      <div class="qa-num">Q${idx + 1}</div>
+      <button type="button" class="qa-remove" onclick="removeQA(this)" title="Remove">×</button>
+      <div class="form-group">
+        <label>Question</label>
+        <input type="text" name="question_${idx}" placeholder="Enter the question">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Answer</label>
+        <textarea name="answer_${idx}" rows="5" placeholder="Enter the answer"></textarea>
+      </div>`;
+    list.appendChild(block);
+    qaCount++;
+    block.querySelector('input').focus();
+    renumberQA();
+  }
+
+  function removeQA(btn) {
+    btn.closest('.qa-block').remove();
+    renumberQA();
+  }
+
+  function renumberQA() {
+    document.querySelectorAll('.qa-block').forEach((block, i) => {
+      block.querySelector('.qa-num').textContent = `Q${i + 1}`;
+      block.querySelector('input[type="text"]').name  = `question_${i}`;
+      block.querySelector('textarea').name            = `answer_${i}`;
+    });
+    qaCount = document.querySelectorAll('.qa-block').length;
+  }
+</script>
+{% endblock %}

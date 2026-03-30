@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Interviews — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Interviews</h1>
+  <a href="{{ url_for('interview_new') }}" class="btn btn-primary">+ New interview</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Category</th>
+        <th>Questions</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for iv in interviews %}
+      <tr>
+        <td style="font-weight:500;">{{ iv.title }}</td>
+        <td><span class="tag">{{ iv.category }}</span></td>
+        <td style="color:var(--gray-2);">{{ iv.questions | length }}</td>
+        <td style="color:var(--gray-2);">{{ iv.date }}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <a href="{{ url_for('interview_edit', slug=iv.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('interview_delete', slug=iv.slug) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Delete "{{ iv.title }}"? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center; color:var(--gray-3); padding:48px;">
+          No interviews yet. <a href="{{ url_for('interview_new') }}" style="color:var(--blue);">Create one →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

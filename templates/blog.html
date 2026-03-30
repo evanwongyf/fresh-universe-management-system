@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Blog Posts — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Blog Posts</h1>
+  <a href="{{ url_for('blog_new') }}" class="btn btn-primary">+ New post</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Author</th>
+        <th>Category</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for post in posts %}
+      <tr>
+        <td style="font-weight:500;">{{ post.title }}</td>
+        <td style="color:var(--gray-2);">{{ post.author }}</td>
+        <td><span class="tag">{{ post.category }}</span></td>
+        <td style="color:var(--gray-2);">{{ post.date }}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <a href="{{ url_for('blog_edit', slug=post.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('blog_delete', slug=post.slug) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Delete "{{ post.title }}"? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center; color:var(--gray-3); padding:48px;">
+          No posts yet. <a href="{{ url_for('blog_new') }}" style="color:var(--blue);">Create one →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
