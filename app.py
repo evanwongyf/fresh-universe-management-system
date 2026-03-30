@@ -128,7 +128,7 @@ def interview_new():
         source = _render_interview_source(data)
         filename = _slugify(data["title"]) + ".py"
         upload_interview_source(filename, source)
-        flash(f"Interview "{data['title']}" saved.", "success")
+        flash(f"Interview '{data['title']}' saved.", "success")
         return redirect(url_for("interviews"))
     return render_template("interview_form.html", mode="new", form={})
 
@@ -153,7 +153,7 @@ def interview_edit(slug):
         if old_filename != filename:
             delete_interview(old_filename)
         upload_interview_source(filename, source)
-        flash(f"Interview "{data['title']}" updated.", "success")
+        flash(f"Interview '{data['title']}' updated.", "success")
         return redirect(url_for("interviews"))
 
     # pre-populate form from existing data
@@ -192,7 +192,7 @@ def blog_new():
         source = _render_blog_source(data)
         filename = _slugify(data["title"]) + ".py"
         upload_blog_post_source(filename, source)
-        flash(f"Post "{data['title']}" saved.", "success")
+        flash(f"Post '{data['title']}' saved.", "success")
         return redirect(url_for("blog"))
     return render_template("blog_form.html", mode="new", form={})
 
@@ -216,7 +216,7 @@ def blog_edit(slug):
         if old_filename != filename:
             delete_blog_post(old_filename)
         upload_blog_post_source(filename, source)
-        flash(f"Post "{data['title']}" updated.", "success")
+        flash(f"Post '{data['title']}' updated.", "success")
         return redirect(url_for("blog"))
 
     return render_template("blog_form.html", mode="edit", form=post, post=post)
