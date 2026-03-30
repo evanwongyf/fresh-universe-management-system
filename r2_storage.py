@@ -42,12 +42,15 @@ def ensure_project_folder():
 def _list_keys(prefix):
     s3 = _client()
     keys = []
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if not key.endswith("/"):
-                keys.append(key)
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if not key.endswith("/"):
+                    keys.append(key)
+    except ClientError as e:
+        logger.error("Failed to list keys for prefix %s: %s", prefix, e)
     return keys
 
 def _fetch_source(key):
@@ -63,16 +66,39 @@ def _exec_py_source(source, variable_name, filename="<r2>"):
     namespace = {}
     try:
         exec(compile(source, filename, "exec"), namespace)  # noqa: S102
-    except SyntaxError as e:
-        logger.error("Syntax error in %s: %s", filename, e)
+    except Exception as e:
+        logger.error("Error executing %s: %s", filename, e)
         return None
     return namespace.get(variable_name)
 
 # ---------------------------------------------------------------------------
 # Loaders
 # ---------------------------------------------------------------------------
-def load_interviews_from_r2():
+def _parse_date(date_str):
+    """Parse DD/MM/YY or DD/MM/YYYY date strings; return epoch datetime on failure."""
     from datetime import datetime
+    s = date_str.replace(" ", "") if date_str else ""
+    for fmt in ("%d/%m/%y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(s, fmt)
+        except (ValueError, TypeError):
+            continue
+    # Try zero-padding single-digit day/month components
+    parts = s.split("/")
+    if len(parts) == 3:
+        try:
+            padded = "/".join(p.zfill(2) for p in parts)
+            for fmt in ("%d/%m/%y", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(padded, fmt)
+                except ValueError:
+                    continue
+        except Exception:
+            pass
+    logger.warning("Could not parse date: %r", date_str)
+    return datetime(1970, 1, 1)
+
+def load_interviews_from_r2():
     prefix = f"{R2_PROJECT_FOLDER}/interviews/"
     results = []
     for key in _list_keys(prefix):
@@ -83,11 +109,10 @@ def load_interviews_from_r2():
         if isinstance(data, dict):
             data["_filename"] = key.split("/")[-1]  # store filename for edits/deletes
             results.append(data)
-    results.sort(key=lambda x: datetime.strptime(x["date"].replace(" ", ""), "%d/%m/%y"), reverse=True)
+    results.sort(key=lambda x: _parse_date(x.get("date", "")), reverse=True)
     return results
 
 def load_blog_posts_from_r2():
-    from datetime import datetime
     prefix = f"{R2_PROJECT_FOLDER}/blog/"
     results = []
     for key in _list_keys(prefix):
@@ -98,7 +123,7 @@ def load_blog_posts_from_r2():
         if isinstance(data, dict):
             data["_filename"] = key.split("/")[-1]
             results.append(data)
-    results.sort(key=lambda x: datetime.strptime(x["date"].replace(" ", ""), "%d/%m/%y"), reverse=True)
+    results.sort(key=lambda x: _parse_date(x.get("date", "")), reverse=True)
     return results
 
 # ---------------------------------------------------------------------------
@@ -141,7 +166,6 @@ def delete_blog_post(filename):
 # Issues — one .py file per issue, variable name: issue
 # ---------------------------------------------------------------------------
 def load_issues_from_r2():
-    from datetime import datetime
     prefix = f"{R2_PROJECT_FOLDER}/issues/"
     results = []
     for key in _list_keys(prefix):
@@ -152,7 +176,7 @@ def load_issues_from_r2():
         if isinstance(data, dict):
             data["_filename"] = key.split("/")[-1]
             results.append(data)
-    results.sort(key=lambda x: datetime.strptime(x["date_published"].replace(" ", ""), "%d/%m/%y"), reverse=True)
+    results.sort(key=lambda x: _parse_date(x.get("date_published", "")), reverse=True)
     return results
 
 def upload_issue_source(filename, source):

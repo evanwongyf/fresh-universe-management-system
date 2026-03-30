@@ -135,7 +135,11 @@ def dashboard():
 @app.route("/interviews")
 @login_required
 def interviews():
-    items = load_interviews_from_r2()
+    try:
+        items = load_interviews_from_r2()
+    except Exception as e:
+        flash(f"Could not load interviews from R2: {e}", "error")
+        items = []
     return render_template("interviews.html", interviews=items)
 
 @app.route("/interviews/new", methods=["GET", "POST"])
@@ -199,7 +203,11 @@ def interview_delete(slug):
 @app.route("/blog")
 @login_required
 def blog():
-    posts = load_blog_posts_from_r2()
+    try:
+        posts = load_blog_posts_from_r2()
+    except Exception as e:
+        flash(f"Could not load blog posts from R2: {e}", "error")
+        posts = []
     return render_template("blog.html", posts=posts)
 
 @app.route("/blog/new", methods=["GET", "POST"])
@@ -349,7 +357,12 @@ def _render_blog_source(data):
 @app.route("/issues")
 @login_required
 def issues():
-    return render_template("issues.html", issues=load_issues_from_r2())
+    try:
+        items = load_issues_from_r2()
+    except Exception as e:
+        flash(f"Could not load issues from R2: {e}", "error")
+        items = []
+    return render_template("issues.html", issues=items)
 
 @app.route("/issues/new", methods=["GET", "POST"])
 @login_required
