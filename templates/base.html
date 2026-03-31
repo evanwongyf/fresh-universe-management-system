@@ -349,6 +349,18 @@
           <a href="{{ url_for('page_submissions') }}">Submissions</a>
         </div>
       </div>
+      <div class="nav-dropdown">
+        <a href="#" {% if 'form_builder' in request.endpoint or 'submissions' in request.endpoint %}class="active"{% endif %}>Forms ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="{{ url_for('form_builder', form_type='issue_submission') }}">Issue Submission</a>
+          <a href="{{ url_for('form_builder', form_type='blog_submission') }}">Blog Submission</a>
+          <a href="{{ url_for('form_builder', form_type='staff_application') }}">Staff Application</a>
+          <hr style="border:none;border-top:1px solid var(--gray-4);margin:4px 0;">
+          <a href="{{ url_for('submissions_list', form_type='issue_submission') }}">Issue Submissions</a>
+          <a href="{{ url_for('submissions_list', form_type='blog_submission') }}">Blog Submissions</a>
+          <a href="{{ url_for('submissions_list', form_type='staff_application') }}">Staff Applications</a>
+        </div>
+      </div>
       <a href="{{ url_for('site_settings') }}" {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>
       <span class="nav-user">{{ session.user }}</span>
       <a href="{{ url_for('logout') }}">Log out</a>

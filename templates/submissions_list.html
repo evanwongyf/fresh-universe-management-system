@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} Submissions — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .sub-card {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .sub-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    gap: 12px;
+  }
+  .sub-card-header:hover { background: var(--off-white); }
+  .sub-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .sub-name { font-weight: 600; font-size: 14px; color: var(--gray-1); }
+  .sub-date { font-size: 12px; color: var(--gray-3); }
+  .sub-tag  { font-size: 11px; }
+  .sub-chevron { color: var(--gray-3); font-size: 13px; transition: transform 0.2s; flex-shrink: 0; }
+  .sub-chevron.open { transform: rotate(90deg); }
+  .sub-body {
+    display: none;
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--gray-4);
+  }
+  .sub-body.open { display: block; }
+  .sub-fields { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .sub-field { }
+  .sub-field .sf-label { font-size: 11px; font-weight: 600; color: var(--gray-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .sub-field .sf-value { font-size: 13px; color: var(--gray-1); line-height: 1.5; word-break: break-word; white-space: pre-wrap; }
+  .sub-field.full { grid-column: 1 / -1; }
+  .sub-actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+  .file-link { font-size: 13px; color: var(--blue); text-decoration: none; }
+  .file-link:hover { text-decoration: underline; }
+  .empty-state { text-align: center; padding: 64px 20px; color: var(--gray-3); }
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .filter-bar input { flex: 1; min-width: 200px; }
+  .count-badge { font-size: 13px; color: var(--gray-2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">Submissions</span></h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('form_builder', form_type=form_type) }}" class="btn btn-secondary">Edit form</a>
+  </div>
+</div>
+
+{% if submissions %}
+<div class="filter-bar">
+  <input type="text" id="search" placeholder="Search by name, email…" oninput="filterSubs(this.value)">
+  <span class="count-badge" id="count-label">{{ submissions | length }} submission{{ 's' if submissions | length != 1 }}</span>
+</div>
+
+<div id="subs-list">
+  {% for sub in submissions %}
+  {% set name_val = sub.get('name') or sub.get('full_name') or '(no name)' %}
+  {% set email_val = sub.get('email') or '' %}
+  {% set cat_val = sub.get('category') or sub.get('role') or '' %}
+  <div class="sub-card" data-search="{{ (name_val ~ ' ' ~ email_val ~ ' ' ~ cat_val) | lower }}">
+    <div class="sub-card-header" onclick="toggleSub(this)">
+      <div class="sub-meta">
+        <span class="sub-name">{{ name_val }}</span>
+        {% if email_val %}<span class="sub-date">{{ email_val }}</span>{% endif %}
+        {% if cat_val %}<span class="tag sub-tag">{{ cat_val }}</span>{% endif %}
+        {% if sub._submitted_at %}<span class="sub-date">{{ sub._submitted_at[:10] }}</span>{% endif %}
+      </div>
+      <span class="sub-chevron">▶</span>
+    </div>
+    <div class="sub-body">
+      <div class="sub-fields">
+        {% for field in config.fields %}
+        {% set val = sub.get(field.id, '') %}
+        {% if val %}
+        <div class="sub-field {% if field.type == 'textarea' or (val | string | length > 80) %}full{% endif %}">
+          <div class="sf-label">{{ field.label }}</div>
+          {% if field.type == 'file' and val %}
+          <div class="sf-value"><a href="{{ val }}" target="_blank" class="file-link">📎 Download / View file</a></div>
+          {% elif field.type == 'checkbox' and val is iterable and val is not string %}
+          <div class="sf-value">{{ val | join(', ') }}</div>
+          {% else %}
+          <div class="sf-value">{{ val }}</div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        <div class="sub-field">
+          <div class="sf-label">Submitted</div>
+          <div class="sf-value">{{ sub._submitted_at or '—' }}</div>
+        </div>
+        <div class="sub-field">
+          <div class="sf-label">ID</div>
+          <div class="sf-value" style="font-size:11px;color:var(--gray-3);">{{ sub._id }}</div>
+        </div>
+      </div>
+      <div class="sub-actions">
+        <form method="POST" action="{{ url_for('submission_delete', form_type=form_type, sub_id=sub._id) }}"
+              onsubmit="return confirm('Delete this submission? This cannot be undone.')">
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p style="font-size:15px;">No submissions yet.</p>
+  <p style="font-size:13px;margin-top:8px;">Submissions will appear here once people fill out the form on the magazine site.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleSub(header) {
+    const body    = header.nextElementSibling;
+    const chevron = header.querySelector('.sub-chevron');
+    const open    = body.classList.toggle('open');
+    chevron.classList.toggle('open', open);
+  }
+
+  function filterSubs(q) {
+    q = q.toLowerCase();
+    let count = 0;
+    document.querySelectorAll('.sub-card').forEach(card => {
+      const match = card.dataset.search.includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) count++;
+    });
+    const label = document.getElementById('count-label');
+    if (label) label.textContent = count + ' submission' + (count !== 1 ? 's' : '');
+  }
+</script>
+{% endblock %}

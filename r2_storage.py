@@ -18,6 +18,8 @@ R2_BUCKET_NAME       = os.environ.get("R2_BUCKET_NAME",       "projects1")
 R2_PROJECT_FOLDER    = os.environ.get("R2_PROJECT_FOLDER",    "fresh-universe")
 R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID",     "eeee7203a776e6e54bb5b17a2c53def4")
 R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "a9dc1e444888d6569dae622b272d593501f6537b86b005b9414008adcd37e3d2")
+# Public base URL for R2 objects — set R2_PUBLIC_BASE_URL env var in production
+R2_PUBLIC_BASE_URL   = os.environ.get("R2_PUBLIC_BASE_URL",   "")
 
 def _client():
     return boto3.client(
@@ -190,6 +192,22 @@ def delete_issue(filename):
     logger.info("Deleted issue: %s", key)
 
 # ---------------------------------------------------------------------------
+# Images — stored at fresh-universe/images/<filename>
+# Returns the public URL (R2_PUBLIC_BASE_URL/fresh-universe/images/<filename>)
+# or a relative path if no public base URL is configured.
+# ---------------------------------------------------------------------------
+def upload_image_to_r2(filename, data: bytes, content_type: str = "application/octet-stream") -> str:
+    key = f"{R2_PROJECT_FOLDER}/images/{filename}"
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME,
+        Key=key,
+        Body=data,
+        ContentType=content_type,
+    )
+    logger.info("Uploaded image: %s", key)
+    return f"/r2-image/{filename}"
+
+# ---------------------------------------------------------------------------
 # Staff members — one JSON-like .py file, variable name: staff_members (list)
 # Stored as a single file: staff/members.py
 # ---------------------------------------------------------------------------
@@ -245,8 +263,9 @@ def save_staff_applications_to_r2(config):
         role_lines.append(f"            \"description\": {json.dumps(r['description'])},")
         role_lines.append("        },")
     roles_block = "\n".join(role_lines)
+    is_open_val = repr(config.get("is_open", True))
     source = f"""staff_applications = {{
-    "is_open": {json.dumps(config.get("is_open", True))},
+    "is_open": {is_open_val},
     "heading": {json.dumps(config.get("heading", ""))},
     "description": {json.dumps(config.get("description", ""))},
     "apply_link": {json.dumps(config.get("apply_link", ""))},
@@ -274,7 +293,8 @@ def _save_site_config(filename, varname, data):
     key = f"{R2_PROJECT_FOLDER}/site/{filename}"
     lines = [f"{varname} = {{"]
     for k, v in data.items():
-        lines.append(f"    {json.dumps(k)}: {json.dumps(v)},")
+        val = repr(v) if isinstance(v, bool) else json.dumps(v)
+        lines.append(f"    {json.dumps(k)}: {val},")
     lines.append("}")
     source = "\n".join(lines) + "\n"
     _client().put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=source.encode("utf-8"), ContentType="text/x-python")
@@ -315,3 +335,126 @@ def load_interviews_page_config():
     return _load_site_config("interviews_page.py", "interviews_page_config")
 def save_interviews_page_config(data):
     _save_site_config("interviews_page.py", "interviews_page_config", data)
+
+# ---------------------------------------------------------------------------
+# Forms — config stored as JSON at fresh-universe/forms/<form_type>.json
+# form_type: "issue_submission" | "blog_submission" | "staff_application"
+# Schema: { "title": str, "description": str, "open": bool, "fields": [ {
+#   "id": str, "label": str, "type": str, "required": bool,
+#   "options": [str, ...] (for select/radio/checkbox),
+#   "accept": str (for file, e.g. "image/*,.pdf"),
+#   "placeholder": str
+# }, ... ] }
+# ---------------------------------------------------------------------------
+_FORM_DEFAULTS = {
+    "issue_submission": {
+        "title": "Issue Submission",
+        "description": "Submit your work for consideration in our next issue.",
+        "open": True,
+        "closed_message": "Issue submissions are currently closed. Check back soon!",
+        "fields": [
+            {"id": "name",     "label": "Full Name",       "type": "text",     "required": True,  "placeholder": "Your full name"},
+            {"id": "email",    "label": "Email",            "type": "email",    "required": True,  "placeholder": "your@email.com"},
+            {"id": "category", "label": "Category",         "type": "select",   "required": True,  "options": ["Literature", "Art", "Photography", "Music", "Experimental", "Other"]},
+            {"id": "title",    "label": "Work Title",       "type": "text",     "required": True,  "placeholder": "Title of your piece"},
+            {"id": "file",     "label": "Upload Your Work", "type": "file",     "required": True,  "accept": ".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.mp3,.mp4,.wav"},
+            {"id": "notes",    "label": "Additional Notes", "type": "textarea", "required": False, "placeholder": "Anything else you'd like us to know?"},
+        ],
+    },
+    "blog_submission": {
+        "title": "Blog Submission",
+        "description": "Submit your work for our always-open Fresh Blog.",
+        "open": True,
+        "closed_message": "Blog submissions are currently closed.",
+        "fields": [
+            {"id": "name",     "label": "Full Name",        "type": "text",     "required": True,  "placeholder": "Your full name"},
+            {"id": "email",    "label": "Email",             "type": "email",    "required": True,  "placeholder": "your@email.com"},
+            {"id": "bio",      "label": "Short Bio",         "type": "textarea", "required": False, "placeholder": "A few sentences about yourself"},
+            {"id": "category", "label": "Category",          "type": "select",   "required": True,  "options": ["Literature", "Art", "Photography", "Music", "Experimental", "Other"]},
+            {"id": "title",    "label": "Work Title",        "type": "text",     "required": True,  "placeholder": "Title of your piece"},
+            {"id": "content",  "label": "Work / Description","type": "textarea", "required": False, "placeholder": "Paste your writing here, or describe your piece"},
+            {"id": "file",     "label": "Upload File",       "type": "file",     "required": False, "accept": ".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"},
+        ],
+    },
+    "staff_application": {
+        "title": "Staff Application",
+        "description": "Apply to join the Fresh Universe team.",
+        "open": True,
+        "closed_message": "Staff applications are currently closed.",
+        "fields": [
+            {"id": "name",     "label": "Full Name",        "type": "text",     "required": True,  "placeholder": "Your full name"},
+            {"id": "email",    "label": "Email",             "type": "email",    "required": True,  "placeholder": "your@email.com"},
+            {"id": "role",     "label": "Role Applying For", "type": "select",   "required": True,  "options": ["Literary Editor", "Media Editor", "Graphic Designer", "Staff Writer", "Staff Artist", "Outreach Manager", "Interviewer", "Social Media Manager", "Blog Manager", "Email Manager", "Reel Creator"]},
+            {"id": "why",      "label": "Why do you want to join?", "type": "textarea", "required": True, "placeholder": "Tell us about yourself and why you want to join Fresh Universe"},
+            {"id": "portfolio","label": "Portfolio / Work Link", "type": "text", "required": False, "placeholder": "https://..."},
+            {"id": "file",     "label": "Upload CV / Portfolio", "type": "file", "required": False, "accept": ".pdf,.doc,.docx,.jpg,.jpeg,.png"},
+        ],
+    },
+}
+
+def _form_key(form_type):
+    return f"{R2_PROJECT_FOLDER}/forms/{form_type}.json"
+
+def load_form_config(form_type):
+    import json
+    key = _form_key(form_type)
+    s3 = _client()
+    try:
+        obj = s3.get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        return _FORM_DEFAULTS.get(form_type, {})
+
+def save_form_config(form_type, config):
+    import json
+    key = _form_key(form_type)
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=key,
+        Body=json.dumps(config, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    logger.info("Saved form config: %s", key)
+
+# ---------------------------------------------------------------------------
+# Submissions — stored as JSON at fresh-universe/submissions/<type>/<uuid>.json
+# ---------------------------------------------------------------------------
+def save_submission(form_type, data: dict):
+    import json, uuid
+    from datetime import datetime as _dt
+    sub_id = str(uuid.uuid4())
+    data["_id"] = sub_id
+    data["_submitted_at"] = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    data["_form_type"] = form_type
+    key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/{sub_id}.json"
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=key,
+        Body=json.dumps(data, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    logger.info("Saved submission: %s", key)
+    return sub_id
+
+def load_submissions(form_type):
+    import json
+    prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
+    results = []
+    for key in _list_keys(prefix):
+        try:
+            obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+            results.append(json.loads(obj["Body"].read().decode("utf-8")))
+        except Exception as e:
+            logger.error("Failed to load submission %s: %s", key, e)
+    results.sort(key=lambda x: x.get("_submitted_at", ""), reverse=True)
+    return results
+
+def delete_submission(form_type, sub_id):
+    key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/{sub_id}.json"
+    _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+    logger.info("Deleted submission: %s", key)
+
+# Uploaded submission files stored at fresh-universe/submission-files/<filename>
+def upload_submission_file(filename, data: bytes, content_type: str = "application/octet-stream") -> str:
+    key = f"{R2_PROJECT_FOLDER}/submission-files/{filename}"
+    _client().put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=data, ContentType=content_type)
+    logger.info("Uploaded submission file: %s", key)
+    return f"/r2-submission-file/{filename}"

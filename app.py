@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import os, re, hashlib, secrets
 from functools import wraps
 from dotenv import load_dotenv
@@ -25,13 +25,16 @@ from r2_storage import (
     load_blog_page_config, save_blog_page_config,
     load_interviews_page_config, save_interviews_page_config,
     _fetch_source,
-    _client,
-    R2_PROJECT_FOLDER,
-    R2_BUCKET_NAME,
+    upload_image_to_r2,
+    R2_PUBLIC_BASE_URL,
+    load_form_config, save_form_config,
+    load_submissions, delete_submission,
+    R2_PROJECT_FOLDER, R2_BUCKET_NAME, _client,
 )
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.jinja_env.filters['enumerate'] = enumerate
 
 # ---------------------------------------------------------------------------
 # Simple single-user auth (stored in env or hardcoded fallback for dev)
@@ -304,13 +307,14 @@ def _parse_blog_form(form):
     date     = form.get("date", "").strip()
     content  = form.get("content", "")
     category = form.get("category", "").strip()
+    image    = form.get("image", "").strip()
 
     if not title:  return None, "Title is required."
     if not date:   return None, "Date is required."
     if not author: return None, "Author is required."
 
     return {"title": title, "slug": slug, "author": author, "bio": bio,
-            "date": date, "content": content, "category": category}, None
+            "date": date, "content": content, "category": category, "image": image}, None
 
 def _render_interview_source(data):
     """Render a valid Python source string for an interview dict."""
@@ -347,6 +351,7 @@ def _render_blog_source(data):
         f'    "date": {json.dumps(data["date"])},',
         f'    "content": """{content_escaped}""",',
         f'    "category": {json.dumps(data["category"])},',
+        f'    "image": {json.dumps(data.get("image", ""))},',
         f'}}',
     ]
     return "\n".join(lines) + "\n"
@@ -523,10 +528,13 @@ def _parse_issue_form(form):
     description  = form.get("description", "").strip()
     staff        = form.get("staff", "").strip()
     statistics   = form.get("statistics", "").strip()
+    read_url     = form.get("read_url", "").strip()
+    heyzine_id   = form.get("heyzine_id", "").strip()
     if not issue_name: return None, "Issue name is required."
     if not date_pub:   return None, "Date is required."
     return {"issue_name": issue_name, "slug": slug, "date_published": date_pub,
-            "description": description, "staff": staff, "statistics": statistics}, None
+            "description": description, "staff": staff, "statistics": statistics,
+            "read_url": read_url, "heyzine_id": heyzine_id}, None
 
 def _render_issue_source(data):
     import json
@@ -535,6 +543,8 @@ def _render_issue_source(data):
     "issue_name": {json.dumps(data["issue_name"])},
     "date_published": {json.dumps(data["date_published"])},
     "description": {json.dumps(data["description"])},
+    "heyzine_id": {json.dumps(data.get("heyzine_id", ""))},
+    "read_url": {json.dumps(data.get("read_url", ""))},
     "staff": {json.dumps(data["staff"])},
     "statistics": {json.dumps(data["statistics"])},
 }}
@@ -792,6 +802,123 @@ def issue_source(slug):
         back_url=url_for('issues'),
         editable=True,
     )
+
+# ---------------------------------------------------------------------------
+# Form builder — edit form config (questions, open/closed, etc.)
+# ---------------------------------------------------------------------------
+_FORM_LABELS = {
+    "issue_submission": "Issue Submission Form",
+    "blog_submission":  "Blog Submission Form",
+    "staff_application": "Staff Application Form",
+}
+
+@app.route("/forms/<form_type>", methods=["GET", "POST"])
+@login_required
+def form_builder(form_type):
+    if form_type not in _FORM_LABELS:
+        flash("Unknown form type.", "error")
+        return redirect(url_for("dashboard"))
+    config = load_form_config(form_type)
+    if request.method == "POST":
+        config["title"]          = request.form.get("title", "").strip()
+        config["description"]    = request.form.get("description", "").strip()
+        config["open"]           = request.form.get("open") == "1"
+        config["closed_message"] = request.form.get("closed_message", "").strip()
+        # Rebuild fields from dynamic form inputs
+        fields = []
+        i = 0
+        while True:
+            fid = request.form.get(f"field_id_{i}", "").strip()
+            if not fid and request.form.get(f"field_label_{i}") is None:
+                break
+            if fid:
+                ftype    = request.form.get(f"field_type_{i}", "text")
+                flabel   = request.form.get(f"field_label_{i}", "").strip()
+                freq     = request.form.get(f"field_required_{i}") == "1"
+                fph      = request.form.get(f"field_placeholder_{i}", "").strip()
+                faccept  = request.form.get(f"field_accept_{i}", "").strip()
+                foptions_raw = request.form.get(f"field_options_{i}", "").strip()
+                foptions = [o.strip() for o in foptions_raw.splitlines() if o.strip()]
+                field = {"id": fid, "label": flabel, "type": ftype, "required": freq}
+                if fph:      field["placeholder"] = fph
+                if faccept:  field["accept"]      = faccept
+                if foptions: field["options"]      = foptions
+                fields.append(field)
+            i += 1
+        config["fields"] = fields
+        save_form_config(form_type, config)
+        flash(f"{_FORM_LABELS[form_type]} saved.", "success")
+        return redirect(url_for("form_builder", form_type=form_type))
+    return render_template("form_builder.html", form_type=form_type,
+                           label=_FORM_LABELS[form_type], config=config)
+
+# ---------------------------------------------------------------------------
+# Submissions viewer
+# ---------------------------------------------------------------------------
+@app.route("/submissions/<form_type>")
+@login_required
+def submissions_list(form_type):
+    if form_type not in _FORM_LABELS:
+        flash("Unknown form type.", "error")
+        return redirect(url_for("dashboard"))
+    subs = load_submissions(form_type)
+    config = load_form_config(form_type)
+    return render_template("submissions_list.html", form_type=form_type,
+                           label=_FORM_LABELS[form_type], submissions=subs, config=config)
+
+@app.route("/submissions/<form_type>/<sub_id>/delete", methods=["POST"])
+@login_required
+def submission_delete(form_type, sub_id):
+    delete_submission(form_type, sub_id)
+    flash("Submission deleted.", "success")
+    return redirect(url_for("submissions_list", form_type=form_type))
+
+# Proxy for submission files (same as magazine)
+@app.route("/r2-submission-file/<path:filename>")
+@login_required
+def r2_submission_file(filename):
+    from botocore.exceptions import ClientError
+    from flask import Response
+    key = f"{R2_PROJECT_FOLDER}/submission-files/{filename}"
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return Response(obj["Body"].read(), content_type=obj["ContentType"])
+    except ClientError:
+        return ("Not found", 404)
+
+# ---------------------------------------------------------------------------
+# R2 image proxy — serves fresh-universe/images/<filename>
+# ---------------------------------------------------------------------------
+@app.route("/r2-image/<path:filename>")
+def r2_image(filename):
+    from botocore.exceptions import ClientError
+    from flask import Response
+    from r2_storage import _client, R2_BUCKET_NAME, R2_PROJECT_FOLDER
+    key = f"{R2_PROJECT_FOLDER}/images/{filename}"
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return Response(obj["Body"].read(), content_type=obj["ContentType"])
+    except ClientError:
+        return ("Not found", 404)
+
+# ---------------------------------------------------------------------------
+# Image upload — stores to R2 fresh-universe/images/, returns public URL
+# ---------------------------------------------------------------------------
+@app.route("/upload/image", methods=["POST"])
+@login_required
+def upload_image():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "No file provided"}), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    allowed = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+    if ext not in allowed:
+        return jsonify({"error": "File type not allowed"}), 400
+    # Sanitise filename
+    safe_name = re.sub(r"[^\w.\-]", "_", f.filename)
+    data = f.read()
+    url = upload_image_to_r2(safe_name, data, f.content_type or "application/octet-stream")
+    return jsonify({"url": url})
 
 
 if __name__ == "__main__":

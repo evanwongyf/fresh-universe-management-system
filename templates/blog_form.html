@@ -45,6 +45,22 @@
     height: auto;
   }
   .CodeMirror-focused { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,74,173,0.1); }
+  #image-drop {
+    border: 2px dashed var(--gray-4);
+    border-radius: 8px;
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    color: var(--gray-3);
+    font-size: 13px;
+  }
+  #image-drop.drag-over { border-color: var(--blue); background: rgba(0,74,173,0.04); }
+  #image-drop.has-image { border-style: solid; border-color: var(--gray-3); }
+  #image-preview { max-width: 100%; max-height: 220px; border-radius: 6px; display: none; margin: 0 auto 8px; }
+  #image-preview.visible { display: block; }
+  #image-upload-progress { font-size: 12px; color: var(--blue); margin-top: 6px; display:none; }
+  #content-wrap { position: relative; }
   #preview-pane {
     border: 1px solid var(--gray-4);
     border-radius: 0 0 6px 6px;
@@ -109,6 +125,23 @@
     </div>
   </div>
 
+  <!-- Featured image -->
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:16px;">Featured image</p>
+    <input type="hidden" id="image" name="image" value="{{ form.image or '' }}">
+    {% if form.image %}
+    <img id="image-preview" src="{{ form.image }}" class="visible" alt="Current image">
+    {% else %}
+    <img id="image-preview" src="" alt="Preview">
+    {% endif %}
+    <div id="image-drop" onclick="document.getElementById('image-file-input').click()">
+      <span id="image-drop-label">{{ "Click to replace image" if form.image else "Click or drag an image to upload" }}</span>
+    </div>
+    <input type="file" id="image-file-input" accept="image/*" style="display:none">
+    <div id="image-upload-progress">Uploading…</div>
+    <p class="form-hint" style="margin-top:8px;">Optional. Uploaded to R2 and stored as a URL in the post.</p>
+  </div>
+
   <!-- Content -->
   <div class="form-card" style="margin-bottom:24px;">
     <p class="section-title" style="margin-bottom:16px;">Content</p>
@@ -164,6 +197,61 @@
     }
   });
   contentEditor.setSize(null, 480);
+
+  // Image upload
+  const dropZone   = document.getElementById('image-drop');
+  const fileInput  = document.getElementById('image-file-input');
+  const preview    = document.getElementById('image-preview');
+  const hiddenUrl  = document.getElementById('image');
+  const progress   = document.getElementById('image-upload-progress');
+  const dropLabel  = document.getElementById('image-drop-label');
+
+  async function uploadImageFile(file) {
+    progress.style.display = 'block';
+    dropZone.style.pointerEvents = 'none';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/upload/image', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (json.url) {
+        hiddenUrl.value = json.url;
+        preview.src = json.url;
+        preview.classList.add('visible');
+        dropZone.classList.add('has-image');
+        dropLabel.textContent = 'Click to replace image';
+      } else {
+        alert('Upload failed: ' + (json.error || 'unknown error'));
+      }
+    } catch (e) {
+      alert('Upload failed: ' + e.message);
+    }
+    progress.style.display = 'none';
+    dropZone.style.pointerEvents = '';
+  }
+
+  fileInput.addEventListener('change', function() {
+    if (this.files[0]) uploadImageFile(this.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault(); this.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', function() {
+    this.classList.remove('drag-over');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); this.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) uploadImageFile(file);
+  });
+
+  // Also show existing image on load if value is set
+  if (hiddenUrl.value && !preview.classList.contains('visible')) {
+    preview.src = hiddenUrl.value;
+    preview.classList.add('visible');
+    dropZone.classList.add('has-image');
+  }
 
   // Sync editor value back to textarea on form submit
   document.getElementById('main-form').addEventListener('submit', function() {

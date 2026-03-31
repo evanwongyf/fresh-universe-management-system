@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .field-card {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .field-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    cursor: grab;
+  }
+  .field-card-header .drag-handle {
+    color: var(--gray-3);
+    font-size: 16px;
+    cursor: grab;
+    user-select: none;
+  }
+  .field-card-header .field-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .field-card-header .remove-field {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .field-row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .field-row .form-group { flex: 1; min-width: 140px; margin-bottom: 0; }
+  .type-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(0,74,173,0.1);
+    color: var(--blue);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .options-group, .accept-group, .placeholder-group { margin-bottom: 10px; }
+  .toggle-extra {
+    font-size: 12px;
+    color: var(--blue);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+  }
+  .toggle-extra:hover { text-decoration: underline; }
+  .extra-fields { display: none; margin-top: 10px; }
+  .extra-fields.open { display: block; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--off-white);
+    border: 1px solid var(--gray-4);
+    border-radius: 20px;
+    padding: 6px 14px;
+    margin-bottom: 20px;
+  }
+  .status-pill label { font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .status-pill input[type="radio"] { accent-color: var(--blue); }
+  #fields-container { min-height: 40px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ label }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('submissions_list', form_type=form_type) }}" class="btn btn-secondary">View submissions</a>
+  </div>
+</div>
+
+<form method="POST" id="form-builder">
+
+  <!-- Meta -->
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Form settings</p>
+
+    <div class="status-pill">
+      <label><input type="radio" name="open" value="1" {% if config.open %}checked{% endif %}> <span style="color:var(--green);font-weight:600;">Open</span></label>
+      <label><input type="radio" name="open" value="0" {% if not config.open %}checked{% endif %}> <span style="color:var(--red);font-weight:600;">Closed</span></label>
+    </div>
+
+    <div class="form-group">
+      <label>Form title</label>
+      <input type="text" name="title" value="{{ config.title or '' }}" placeholder="e.g. Issue Submission">
+    </div>
+    <div class="form-group">
+      <label>Description <span style="font-weight:400;text-transform:none;">(shown below the title)</span></label>
+      <textarea name="description" rows="2" placeholder="Short description shown on the form page…">{{ config.description or '' }}</textarea>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label>Closed message <span style="font-weight:400;text-transform:none;">(shown when form is closed)</span></label>
+      <input type="text" name="closed_message" value="{{ config.closed_message or '' }}" placeholder="e.g. Submissions are currently closed.">
+    </div>
+  </div>
+
+  <!-- Fields -->
+  <div class="form-card" style="margin-bottom:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <p class="section-title" style="margin-bottom:0;">Form fields</p>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addField()">+ Add field</button>
+    </div>
+
+    <div id="fields-container">
+      {% for i, field in config.fields | enumerate %}
+      <div class="field-card" data-index="{{ i }}">
+        <div class="field-card-header">
+          <span class="drag-handle">⠿</span>
+          <span class="field-num">Field {{ i + 1 }}</span>
+          <span class="type-badge">{{ field.type }}</span>
+          <button type="button" class="remove-field" onclick="removeField(this)">×</button>
+        </div>
+        <div class="field-row">
+          <div class="form-group">
+            <label>Field ID <span class="form-hint" style="display:inline;font-size:11px;">(no spaces)</span></label>
+            <input type="text" name="field_id_{{ i }}" value="{{ field.id }}" placeholder="e.g. email" oninput="updateBadge(this)">
+          </div>
+          <div class="form-group">
+            <label>Label</label>
+            <input type="text" name="field_label_{{ i }}" value="{{ field.label }}" placeholder="Shown to user">
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select name="field_type_{{ i }}" onchange="onTypeChange(this, {{ i }})">
+              {% for t in ['text','email','url','number','textarea','select','radio','checkbox','file'] %}
+              <option value="{{ t }}" {% if field.type == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="flex:0 0 auto;display:flex;align-items:flex-end;padding-bottom:2px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;">
+              <input type="checkbox" name="field_required_{{ i }}" value="1"
+                style="accent-color:var(--blue);"
+                {% if field.required %}checked{% endif %}> Required
+            </label>
+          </div>
+        </div>
+
+        <div class="extra-fields {% if field.placeholder or field.accept or field.options %}open{% endif %}" id="extra_{{ i }}">
+          <div class="placeholder-group">
+            <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Placeholder text</label>
+            <input type="text" name="field_placeholder_{{ i }}" value="{{ field.placeholder or '' }}" placeholder="Placeholder shown inside the field">
+          </div>
+          <div class="options-group" id="options_group_{{ i }}" {% if field.type not in ['select','radio','checkbox'] %}style="display:none;"{% endif %}>
+            <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Options <span style="font-weight:400;">(one per line)</span></label>
+            <textarea name="field_options_{{ i }}" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ (field.options | join('\n')) if field.options else '' }}</textarea>
+          </div>
+          <div class="accept-group" id="accept_group_{{ i }}" {% if field.type != 'file' %}style="display:none;"{% endif %}>
+            <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Accepted file types</label>
+            <input type="text" name="field_accept_{{ i }}" value="{{ field.accept or '' }}" placeholder=".pdf,.jpg,.png,.doc">
+          </div>
+        </div>
+        <button type="button" class="toggle-extra" onclick="toggleExtra({{ i }})">More options</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save form</button>
+  </div>
+</form>
+
+<!-- Field template (hidden) -->
+<template id="field-template">
+  <div class="field-card" data-index="__IDX__">
+    <div class="field-card-header">
+      <span class="drag-handle">⠿</span>
+      <span class="field-num">Field __NUM__</span>
+      <span class="type-badge">text</span>
+      <button type="button" class="remove-field" onclick="removeField(this)">×</button>
+    </div>
+    <div class="field-row">
+      <div class="form-group">
+        <label>Field ID</label>
+        <input type="text" name="field_id___IDX__" placeholder="e.g. name" oninput="updateBadge(this)">
+      </div>
+      <div class="form-group">
+        <label>Label</label>
+        <input type="text" name="field_label___IDX__" placeholder="Shown to user">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select name="field_type___IDX__" onchange="onTypeChange(this, __IDX__)">
+          <option value="text">text</option>
+          <option value="email">email</option>
+          <option value="url">url</option>
+          <option value="number">number</option>
+          <option value="textarea">textarea</option>
+          <option value="select">select</option>
+          <option value="radio">radio</option>
+          <option value="checkbox">checkbox</option>
+          <option value="file">file</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:0 0 auto;display:flex;align-items:flex-end;padding-bottom:2px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;">
+          <input type="checkbox" name="field_required___IDX__" value="1" style="accent-color:var(--blue);"> Required
+        </label>
+      </div>
+    </div>
+    <div class="extra-fields" id="extra___IDX__">
+      <div class="placeholder-group">
+        <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Placeholder text</label>
+        <input type="text" name="field_placeholder___IDX__" placeholder="Placeholder shown inside the field">
+      </div>
+      <div class="options-group" id="options_group___IDX__" style="display:none;">
+        <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Options (one per line)</label>
+        <textarea name="field_options___IDX__" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+      </div>
+      <div class="accept-group" id="accept_group___IDX__" style="display:none;">
+        <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Accepted file types</label>
+        <input type="text" name="field_accept___IDX__" placeholder=".pdf,.jpg,.png,.doc">
+      </div>
+    </div>
+    <button type="button" class="toggle-extra" onclick="toggleExtra(__IDX__)">More options</button>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Jinja2 adds enumerate — polyfill if needed
+  let fieldCount = {{ config.fields | length }};
+
+  function addField() {
+    const tmpl = document.getElementById('field-template').innerHTML;
+    const idx  = fieldCount++;
+    const num  = document.querySelectorAll('.field-card').length + 1;
+    const html = tmpl.replaceAll('__IDX__', idx).replaceAll('__NUM__', num);
+    document.getElementById('fields-container').insertAdjacentHTML('beforeend', html);
+    renumberFields();
+  }
+
+  function removeField(btn) {
+    btn.closest('.field-card').remove();
+    renumberFields();
+  }
+
+  function renumberFields() {
+    document.querySelectorAll('.field-card').forEach((card, i) => {
+      card.querySelector('.field-num').textContent = `Field ${i + 1}`;
+    });
+  }
+
+  function toggleExtra(idx) {
+    const el = document.getElementById('extra_' + idx);
+    el.classList.toggle('open');
+  }
+
+  function onTypeChange(select, idx) {
+    const type = select.value;
+    const badge = select.closest('.field-card').querySelector('.type-badge');
+    if (badge) badge.textContent = type;
+    const og = document.getElementById('options_group_' + idx);
+    const ag = document.getElementById('accept_group_' + idx);
+    if (og) og.style.display = ['select','radio','checkbox'].includes(type) ? '' : 'none';
+    if (ag) ag.style.display = type === 'file' ? '' : 'none';
+    // Auto-open extra panel when type needs options/accept
+    if (['select','radio','checkbox','file'].includes(type)) {
+      const extra = document.getElementById('extra_' + idx);
+      if (extra) extra.classList.add('open');
+    }
+  }
+
+  function updateBadge(input) {
+    // no-op placeholder for future use
+  }
+</script>
+{% endblock %}

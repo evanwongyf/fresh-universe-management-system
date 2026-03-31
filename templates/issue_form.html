@@ -34,6 +34,22 @@
       <textarea id="description" name="description" rows="6"
                 placeholder="Issue theme description…">{{ form.description or '' }}</textarea>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="heyzine_id">Heyzine ID</label>
+        <input type="text" id="heyzine_id" name="heyzine_id"
+               value="{{ form.heyzine_id or '' }}"
+               placeholder="e.g. 2341825c13">
+        <p class="form-hint">The ID from the Heyzine URL — used for the cover image.</p>
+      </div>
+      <div class="form-group">
+        <label for="read_url">Read URL</label>
+        <input type="text" id="read_url" name="read_url"
+               value="{{ form.read_url or '' }}"
+               placeholder="https://heyzine.com/flip-book/…">
+        <p class="form-hint">The link the "Read" button points to.</p>
+      </div>
+    </div>
   </div>
 
   <div class="form-card" style="margin-bottom:24px;">
