@@ -130,13 +130,36 @@
     <p class="section-title" style="margin-bottom:16px;">Featured image</p>
     <input type="hidden" id="image" name="image" value="{{ form.image or '' }}">
     {% if form.image %}
-    <img id="image-preview" src="{{ form.image }}" class="visible" alt="Current image">
-    {% else %}
-    <img id="image-preview" src="" alt="Preview">
-    {% endif %}
-    <div id="image-drop" onclick="document.getElementById('image-file-input').click()">
-      <span id="image-drop-label">{{ "Click to replace image" if form.image else "Click or drag an image to upload" }}</span>
+    <div id="image-current" style="position:relative; margin-bottom:12px;">
+      <img id="image-preview" src="{{ form.image }}" alt="Current image"
+           style="max-width:100%; max-height:320px; border-radius:8px; display:block;">
+      <button type="button" onclick="removeImage()"
+              style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;line-height:1;cursor:pointer;"
+              title="Remove image">×</button>
     </div>
+    {% else %}
+    <div id="image-current" style="display:none; position:relative; margin-bottom:12px;">
+      <img id="image-preview" src="" alt="Preview"
+           style="max-width:100%; max-height:320px; border-radius:8px; display:block;">
+      <button type="button" onclick="removeImage()"
+              style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;line-height:1;cursor:pointer;"
+              title="Remove image">×</button>
+    </div>
+    {% endif %}
+    <div id="image-drop" onclick="document.getElementById('image-file-input').click()"{% if form.image %} style="display:none;"{% endif %}>
+      <span id="image-drop-label">Click or drag an image to upload</span>
+    </div>
+    {% if form.image %}
+    <button type="button" id="replace-btn" onclick="showDropZone()"
+            style="margin-top:8px;font-size:12px;background:none;border:1px solid var(--gray-4);border-radius:4px;padding:4px 12px;color:var(--gray-2);cursor:pointer;">
+      Replace image
+    </button>
+    {% else %}
+    <button type="button" id="replace-btn" onclick="showDropZone()"
+            style="display:none;margin-top:8px;font-size:12px;background:none;border:1px solid var(--gray-4);border-radius:4px;padding:4px 12px;color:var(--gray-2);cursor:pointer;">
+      Replace image
+    </button>
+    {% endif %}
     <input type="file" id="image-file-input" accept="image/*" style="display:none">
     <div id="image-upload-progress">Uploading…</div>
     <p class="form-hint" style="margin-top:8px;">Optional. Uploaded to R2 and stored as a URL in the post.</p>
@@ -199,12 +222,26 @@
   contentEditor.setSize(null, 480);
 
   // Image upload
-  const dropZone   = document.getElementById('image-drop');
-  const fileInput  = document.getElementById('image-file-input');
-  const preview    = document.getElementById('image-preview');
-  const hiddenUrl  = document.getElementById('image');
-  const progress   = document.getElementById('image-upload-progress');
-  const dropLabel  = document.getElementById('image-drop-label');
+  const dropZone    = document.getElementById('image-drop');
+  const fileInput   = document.getElementById('image-file-input');
+  const preview     = document.getElementById('image-preview');
+  const currentWrap = document.getElementById('image-current');
+  const replaceBtn  = document.getElementById('replace-btn');
+  const hiddenUrl   = document.getElementById('image');
+  const progress    = document.getElementById('image-upload-progress');
+
+  function showDropZone() {
+    dropZone.style.display = '';
+    replaceBtn.style.display = 'none';
+  }
+
+  function removeImage() {
+    hiddenUrl.value = '';
+    preview.src = '';
+    currentWrap.style.display = 'none';
+    replaceBtn.style.display = 'none';
+    dropZone.style.display = '';
+  }
 
   async function uploadImageFile(file) {
     progress.style.display = 'block';
@@ -217,9 +254,9 @@
       if (json.url) {
         hiddenUrl.value = json.url;
         preview.src = json.url;
-        preview.classList.add('visible');
-        dropZone.classList.add('has-image');
-        dropLabel.textContent = 'Click to replace image';
+        currentWrap.style.display = '';
+        dropZone.style.display = 'none';
+        replaceBtn.style.display = '';
       } else {
         alert('Upload failed: ' + (json.error || 'unknown error'));
       }
@@ -245,13 +282,6 @@
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) uploadImageFile(file);
   });
-
-  // Also show existing image on load if value is set
-  if (hiddenUrl.value && !preview.classList.contains('visible')) {
-    preview.src = hiddenUrl.value;
-    preview.classList.add('visible');
-    dropZone.classList.add('has-image');
-  }
 
   // Sync editor value back to textarea on form submit
   document.getElementById('main-form').addEventListener('submit', function() {

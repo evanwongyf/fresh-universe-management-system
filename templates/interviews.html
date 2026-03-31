@@ -15,7 +15,6 @@
         <th>Category</th>
         <th>Questions</th>
         <th>Date</th>
-        <th>File</th>
         <th></th>
       </tr>
     </thead>
@@ -26,10 +25,8 @@
         <td><span class="tag">{{ iv.category }}</span></td>
         <td style="color:var(--gray-2);">{{ iv.questions | length }}</td>
         <td style="color:var(--gray-2);">{{ iv.date }}</td>
-        <td style="color:var(--gray-3); font-size:12px; font-family:monospace;">{{ iv._filename }}</td>
         <td style="text-align:right; white-space:nowrap;">
           <a href="{{ url_for('interview_edit', slug=iv.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
-          <a href="{{ url_for('interview_source', slug=iv.slug) }}" class="btn btn-secondary btn-sm">Source</a>
           <form method="POST" action="{{ url_for('interview_delete', slug=iv.slug) }}"
                 style="display:inline;"
                 onsubmit="return confirm('Delete &quot;{{ iv.title }}&quot;? This cannot be undone.')">
@@ -39,7 +36,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" style="text-align:center; color:var(--gray-3); padding:48px;">
+        <td colspan="5" style="text-align:center; color:var(--gray-3); padding:48px;">
           No interviews yet. <a href="{{ url_for('interview_new') }}" style="color:var(--blue);">Create one →</a>
         </td>
       </tr>

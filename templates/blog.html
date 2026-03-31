@@ -15,7 +15,6 @@
         <th>Author</th>
         <th>Category</th>
         <th>Date</th>
-        <th>File</th>
         <th></th>
       </tr>
     </thead>
@@ -26,10 +25,8 @@
         <td style="color:var(--gray-2);">{{ post.author }}</td>
         <td><span class="tag">{{ post.category }}</span></td>
         <td style="color:var(--gray-2);">{{ post.date }}</td>
-        <td style="color:var(--gray-3); font-size:12px; font-family:monospace;">{{ post._filename }}</td>
         <td style="text-align:right; white-space:nowrap;">
           <a href="{{ url_for('blog_edit', slug=post.slug) }}" class="btn btn-secondary btn-sm">Edit</a>
-          <a href="{{ url_for('blog_source', slug=post.slug) }}" class="btn btn-secondary btn-sm">Source</a>
           <form method="POST" action="{{ url_for('blog_delete', slug=post.slug) }}"
                 style="display:inline;"
                 onsubmit="return confirm('Delete &quot;{{ post.title }}&quot;? This cannot be undone.')">
@@ -39,7 +36,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" style="text-align:center; color:var(--gray-3); padding:48px;">
+        <td colspan="5" style="text-align:center; color:var(--gray-3); padding:48px;">
           No posts yet. <a href="{{ url_for('blog_new') }}" style="color:var(--blue);">Create one →</a>
         </td>
       </tr>
