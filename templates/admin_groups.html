@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}User Groups — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>User Groups</h1>
+  <a href="{{ url_for('admin_group_new') }}" class="btn btn-primary">+ New group</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Group name</th>
+        <th>Permissions</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td style="font-weight:500;">{{ g.name }}</td>
+        <td style="font-size:12px;color:var(--gray-2);">
+          {% for p in (g.permissions or []) %}
+          <span class="tag" style="margin:2px;">{{ p.replace('can_','').replace('_',' ') }}</span>
+          {% else %}
+          <span style="color:var(--gray-3);">No permissions</span>
+          {% endfor %}
+        </td>
+        <td style="text-align:right;white-space:nowrap;">
+          <a href="{{ url_for('admin_group_edit', group_id=g.id) }}" class="btn btn-secondary btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('admin_group_delete', group_id=g.id) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Delete group &quot;{{ g.name }}&quot;?')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3" style="text-align:center;color:var(--gray-3);padding:48px;">
+          No groups yet. <a href="{{ url_for('admin_group_new') }}" style="color:var(--blue);">Create one →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

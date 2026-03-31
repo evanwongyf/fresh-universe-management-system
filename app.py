@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-import os, re, hashlib, secrets
+import os, re, hashlib, secrets, uuid as _uuid
+from datetime import datetime, timedelta
 from functools import wraps
 from dotenv import load_dotenv
 load_dotenv()
@@ -32,88 +33,178 @@ from r2_storage import (
     get_active_form_version, set_active_form_version, clear_active_form_version,
     list_form_versions, load_form_version, save_form_version, delete_form_version,
     R2_PROJECT_FOLDER, R2_BUCKET_NAME, _client,
+    # new helpers
+    load_users, save_users, get_user_by_id, get_user_by_email, upsert_user,
+    load_user_groups, save_user_groups,
+    load_invites, save_invites, get_invite_by_token,
+    load_feedback, save_feedback,
+    update_submission_fields, find_submission,
+    ALL_PERMISSION_KEYS, EIC_PERMISSION_KEYS,
 )
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 app.jinja_env.filters['enumerate'] = enumerate
+import json as _json
+app.jinja_env.filters['from_json'] = _json.loads
 
 # ---------------------------------------------------------------------------
-# Simple single-user auth (stored in env or hardcoded fallback for dev)
-# In production set CMS_USERNAME / CMS_PASSWORD_HASH env vars.
-# Generate hash: python -c "import hashlib; print(hashlib.sha256(b'yourpassword').hexdigest())"
+# Auth helpers
 # ---------------------------------------------------------------------------
-USERS_FILE = os.path.join(os.path.dirname(__file__), "users.txt")
-
-def _load_users():
-    """Load users from users.txt as {username: password_hash}."""
-    users = {}
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE) as f:
-            for line in f:
-                line = line.strip()
-                if ":" in line:
-                    u, h = line.split(":", 1)
-                    users[u.strip()] = h.strip()
-    return users
-
-def _save_user(username, password_hash):
-    with open(USERS_FILE, "a") as f:
-        f.write(f"{username}:{password_hash}\n")
-
 def _hash(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+def _set_session(user):
+    """Populate session from a user dict."""
+    session["user_id"]      = user["id"]
+    session["user_email"]   = user["email"]
+    session["display_name"] = user.get("display_name") or user["email"].split("@")[0]
+    session["user_role"]    = user.get("role", "user")
+    # Compute permissions
+    groups = load_user_groups()
+    session["permissions"]  = list(_compute_permissions(user, groups))
+    # Legacy key kept so base.html session.user still works during transition
+    session["user"]         = session["display_name"]
+
+def _compute_permissions(user, groups):
+    role = user.get("role", "user")
+    if role == "admin":
+        return set(ALL_PERMISSION_KEYS)
+    if role == "editor_in_chief":
+        return set(EIC_PERMISSION_KEYS)
+    perms = set()
+    if role == "editor":
+        perms.update(["can_view_submissions", "can_edit_submissions"])
+    user_group_ids = set(user.get("groups", []))
+    for g in groups:
+        if g["id"] in user_group_ids:
+            perms.update(g.get("permissions", []))
+    return perms
 
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("user"):
+        if not session.get("user_id"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
+
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get("user_id"):
+                return redirect(url_for("login"))
+            if session.get("user_role") not in roles:
+                flash("Access denied.", "error")
+                return redirect(url_for("dashboard"))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+def permission_required(key):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get("user_id"):
+                return redirect(url_for("login"))
+            if key not in session.get("permissions", []):
+                flash("Access denied.", "error")
+                return redirect(url_for("dashboard"))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+# Seed first admin from users.txt if users.json is empty (migration helper)
+def _maybe_seed_admin():
+    users = load_users()
+    if users:
+        return
+    users_file = os.path.join(os.path.dirname(__file__), "users.txt")
+    if not os.path.exists(users_file):
+        return
+    with open(users_file) as fh:
+        for line in fh:
+            line = line.strip()
+            if ":" in line:
+                uname, ph = line.split(":", 1)
+                admin = {
+                    "id": str(_uuid.uuid4()),
+                    "email": f"{uname.strip()}@freshuniverse.local",
+                    "display_name": uname.strip(),
+                    "password_hash": ph.strip(),
+                    "role": "admin",
+                    "groups": [],
+                    "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "invited_by": None,
+                }
+                upsert_user(admin)
+                break  # only first user
 
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    if session.get("user"):
+    if session.get("user_id"):
         return redirect(url_for("dashboard"))
     return redirect(url_for("login"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    _maybe_seed_admin()
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        email    = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        users = _load_users()
-        if username in users and users[username] == _hash(password):
-            session["user"] = username
+        user = get_user_by_email(email)
+        if user and user.get("password_hash") == _hash(password):
+            _set_session(user)
             return redirect(url_for("dashboard"))
-        flash("Invalid username or password.", "error")
+        flash("Invalid email or password.", "error")
     return render_template("login.html")
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
+@app.route("/invite/<token>", methods=["GET", "POST"])
+def invite_signup(token):
+    invite = get_invite_by_token(token)
+    if not invite or invite.get("used") or invite.get("revoked"):
+        flash("This invite link is invalid or has already been used.", "error")
+        return redirect(url_for("login"))
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        email    = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm  = request.form.get("confirm", "")
-        users = _load_users()
-        if not username or not password:
-            flash("Username and password are required.", "error")
-        elif username in users:
-            flash("Username already taken.", "error")
+        display  = request.form.get("display_name", "").strip()
+        if not email or not password:
+            flash("Email and password are required.", "error")
+        elif get_user_by_email(email):
+            flash("An account with that email already exists.", "error")
         elif password != confirm:
             flash("Passwords do not match.", "error")
         elif len(password) < 6:
             flash("Password must be at least 6 characters.", "error")
         else:
-            _save_user(username, _hash(password))
-            session["user"] = username
-            flash("Account created!", "success")
+            new_user = {
+                "id": str(_uuid.uuid4()),
+                "email": email,
+                "display_name": display or email.split("@")[0],
+                "password_hash": _hash(password),
+                "role": "user",
+                "groups": [],
+                "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "invited_by": invite.get("created_by"),
+            }
+            upsert_user(new_user)
+            # Mark invite used
+            invites = load_invites()
+            for inv in invites:
+                if inv["token"] == token:
+                    inv["used"] = True
+                    inv["used_by_user_id"] = new_user["id"]
+            save_invites(invites)
+            _set_session(new_user)
+            flash("Account created! Welcome to Fresh Universe CMS.", "success")
             return redirect(url_for("dashboard"))
-    return render_template("signup.html")
+    return render_template("invite_signup.html", invite=invite, token=token)
 
 @app.route("/logout")
 def logout():
@@ -826,12 +917,20 @@ def _parse_form_fields(request):
             freq     = request.form.get(f"field_required_{i}") == "1"
             fph      = request.form.get(f"field_placeholder_{i}", "").strip()
             faccept  = request.form.get(f"field_accept_{i}", "").strip()
+            fmultiple = request.form.get(f"field_multiple_{i}") == "1"
             foptions_raw = request.form.get(f"field_options_{i}", "").strip()
             foptions = [o.strip() for o in foptions_raw.splitlines() if o.strip()]
+            fmax_count_raw = request.form.get(f"field_max_count_{i}", "").strip()
             field = {"id": fid, "label": flabel, "type": ftype, "required": freq}
-            if fph:      field["placeholder"] = fph
-            if faccept:  field["accept"]      = faccept
-            if foptions: field["options"]      = foptions
+            if fph:        field["placeholder"] = fph
+            if faccept:    field["accept"]      = faccept
+            if fmultiple:  field["multiple"]    = True
+            if foptions:   field["options"]     = foptions
+            if ftype == "piece_count_selector" and fmax_count_raw:
+                try:
+                    field["max_count"] = max(1, min(10, int(fmax_count_raw)))
+                except ValueError:
+                    field["max_count"] = 4
             fields.append(field)
         i += 1
     return fields
@@ -974,7 +1073,8 @@ def submissions_list(form_type):
         config = load_form_config(form_type)
     return render_template("submissions_list.html", form_type=form_type,
                            label=_FORM_LABELS[form_type], submissions=subs, config=config,
-                           version_list=versions, version_filter=version_filter)
+                           version_list=versions, version_filter=version_filter,
+                           all_editors=_get_editors())
 
 @app.route("/submissions/<form_type>/v/<version_name>")
 @login_required
@@ -991,7 +1091,8 @@ def submissions_version(form_type, version_name):
                            version_filter=version_name,
                            back_url=url_for("form_landing", form_type=form_type),
                            editing_version=version_name,
-                           active_version=active)
+                           active_version=active,
+                           all_editors=_get_editors())
 
 @app.route("/submissions/<form_type>/<sub_id>/delete", methods=["POST"])
 @login_required
@@ -1049,6 +1150,267 @@ def upload_image():
     data = f.read()
     url = upload_image_to_r2(safe_name, data, f.content_type or "application/octet-stream")
     return jsonify({"url": url})
+
+
+# ---------------------------------------------------------------------------
+# Admin — User management
+# ---------------------------------------------------------------------------
+@app.route("/admin/users")
+@role_required("admin", "editor_in_chief")
+def admin_users():
+    users   = load_users()
+    invites = [i for i in load_invites() if not i.get("used") and not i.get("revoked")]
+    groups  = load_user_groups()
+    return render_template("admin_users.html", users=users, pending_invites=invites, groups=groups)
+
+@app.route("/admin/users/<user_id>/role", methods=["POST"])
+@role_required("admin")
+def admin_set_role(user_id):
+    user = get_user_by_id(user_id)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_users"))
+    new_role = request.form.get("role", "user")
+    if new_role not in ("admin", "editor_in_chief", "editor", "user"):
+        flash("Invalid role.", "error")
+        return redirect(url_for("admin_users"))
+    user["role"] = new_role
+    upsert_user(user)
+    flash(f"Role updated for {user['email']}.", "success")
+    return redirect(url_for("admin_users"))
+
+@app.route("/admin/users/<user_id>/groups", methods=["POST"])
+@role_required("admin")
+def admin_set_user_groups(user_id):
+    user = get_user_by_id(user_id)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_users"))
+    user["groups"] = request.form.getlist("groups")
+    upsert_user(user)
+    flash(f"Groups updated for {user['email']}.", "success")
+    return redirect(url_for("admin_users"))
+
+@app.route("/admin/invites/new", methods=["POST"])
+@role_required("admin")
+def admin_create_invite():
+    email = request.form.get("email", "").strip().lower()
+    token = str(_uuid.uuid4())
+    invites = load_invites()
+    invites.append({
+        "token": token,
+        "email": email,
+        "created_by": session["user_id"],
+        "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "used": False,
+        "revoked": False,
+        "used_by_user_id": None,
+    })
+    save_invites(invites)
+    invite_url = url_for("invite_signup", token=token, _external=True)
+    flash(f"Invite link created: {invite_url}", "success")
+    return redirect(url_for("admin_users"))
+
+@app.route("/admin/invites/<token>/revoke", methods=["POST"])
+@role_required("admin")
+def admin_revoke_invite(token):
+    invites = load_invites()
+    for inv in invites:
+        if inv["token"] == token:
+            inv["revoked"] = True
+    save_invites(invites)
+    flash("Invite revoked.", "success")
+    return redirect(url_for("admin_users"))
+
+# ---------------------------------------------------------------------------
+# Admin — Group management
+# ---------------------------------------------------------------------------
+@app.route("/admin/groups")
+@role_required("admin")
+def admin_groups():
+    groups = load_user_groups()
+    return render_template("admin_groups.html", groups=groups, all_permissions=ALL_PERMISSION_KEYS)
+
+@app.route("/admin/groups/new", methods=["GET", "POST"])
+@role_required("admin")
+def admin_group_new():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Group name is required.", "error")
+            return render_template("admin_group_form.html", mode="new", group={}, all_permissions=ALL_PERMISSION_KEYS)
+        perms = request.form.getlist("permissions")
+        group = {"id": str(_uuid.uuid4()), "name": name, "permissions": perms}
+        groups = load_user_groups()
+        groups.append(group)
+        save_user_groups(groups)
+        flash(f"Group '{name}' created.", "success")
+        return redirect(url_for("admin_groups"))
+    return render_template("admin_group_form.html", mode="new", group={}, all_permissions=ALL_PERMISSION_KEYS)
+
+@app.route("/admin/groups/<group_id>/edit", methods=["GET", "POST"])
+@role_required("admin")
+def admin_group_edit(group_id):
+    groups = load_user_groups()
+    group  = next((g for g in groups if g["id"] == group_id), None)
+    if not group:
+        flash("Group not found.", "error")
+        return redirect(url_for("admin_groups"))
+    if request.method == "POST":
+        group["name"]        = request.form.get("name", "").strip()
+        group["permissions"] = request.form.getlist("permissions")
+        save_user_groups(groups)
+        flash(f"Group '{group['name']}' updated.", "success")
+        return redirect(url_for("admin_groups"))
+    return render_template("admin_group_form.html", mode="edit", group=group, all_permissions=ALL_PERMISSION_KEYS)
+
+@app.route("/admin/groups/<group_id>/delete", methods=["POST"])
+@role_required("admin")
+def admin_group_delete(group_id):
+    groups = [g for g in load_user_groups() if g["id"] != group_id]
+    save_user_groups(groups)
+    flash("Group deleted.", "success")
+    return redirect(url_for("admin_groups"))
+
+# ---------------------------------------------------------------------------
+# Editorial workflow — assign submissions
+# ---------------------------------------------------------------------------
+@app.route("/submissions/<form_type>/<sub_id>/assign", methods=["POST"])
+@login_required
+def submission_assign(form_type, sub_id):
+    if session.get("user_role") not in ("admin", "editor_in_chief"):
+        flash("Access denied.", "error")
+        return redirect(url_for("submissions_list", form_type=form_type))
+    editor_id  = request.form.get("editor_id", "").strip()
+    days_raw   = request.form.get("deadline_days", "7").strip()
+    try:
+        days = max(1, int(days_raw))
+    except ValueError:
+        days = 7
+    deadline = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fields = {
+        "_assigned_to":      editor_id or None,
+        "_assigned_by":      session["user_id"],
+        "_assigned_at":      datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "_deadline_days":    days,
+        "_deadline_date":    deadline,
+        "_editorial_status": "pending" if editor_id else "unassigned",
+    }
+    update_submission_fields(form_type, sub_id, fields)
+    flash("Submission assigned.", "success")
+    return redirect(url_for("submissions_list", form_type=form_type))
+
+# ---------------------------------------------------------------------------
+# Editorial workflow — editor dashboard
+# ---------------------------------------------------------------------------
+@app.route("/editor/dashboard")
+@login_required
+def editor_dashboard():
+    if session.get("user_role") not in ("admin", "editor_in_chief", "editor"):
+        flash("Access denied.", "error")
+        return redirect(url_for("dashboard"))
+    uid = session["user_id"]
+    all_subs = []
+    for ft in ("blog_submission", "issue_submission", "staff_application"):
+        for s in load_submissions(ft):
+            s["_form_type_label"] = _FORM_LABELS.get(ft, ft)
+            all_subs.append(s)
+    # Filter to current user's assignments (editors see only theirs; admin/EIC see all)
+    if session["user_role"] == "editor":
+        my_subs = [s for s in all_subs if s.get("_assigned_to") == uid]
+    else:
+        my_subs = [s for s in all_subs if s.get("_assigned_to")]
+    pending   = [s for s in my_subs if s.get("_editorial_status") in ("pending", "in_review")]
+    completed = [s for s in my_subs if s.get("_editorial_status") == "completed"]
+    # Deadline countdown helper
+    now = datetime.utcnow()
+    for s in pending:
+        dl = s.get("_deadline_date")
+        if dl:
+            try:
+                delta = datetime.strptime(dl, "%Y-%m-%dT%H:%M:%SZ") - now
+                s["_days_left"] = max(0, delta.days)
+            except Exception:
+                s["_days_left"] = None
+    return render_template("editor_dashboard.html",
+        pending=pending, completed=completed,
+        all_editors=_get_editors(),
+    )
+
+def _get_editors():
+    return [u for u in load_users() if u.get("role") in ("editor", "editor_in_chief", "admin")]
+
+# ---------------------------------------------------------------------------
+# Editorial workflow — editor view (split: files + feedback form)
+# ---------------------------------------------------------------------------
+@app.route("/editor/submission/<form_type>/<sub_id>", methods=["GET"])
+@login_required
+def editor_view(form_type, sub_id):
+    sub = find_submission(form_type, sub_id)
+    if not sub:
+        flash("Submission not found.", "error")
+        return redirect(url_for("editor_dashboard"))
+    # Only assigned editor, EIC, or admin can view
+    uid = session["user_id"]
+    role = session.get("user_role")
+    if role not in ("admin", "editor_in_chief") and sub.get("_assigned_to") != uid:
+        flash("Access denied.", "error")
+        return redirect(url_for("editor_dashboard"))
+    feedback = load_feedback(sub_id)
+    config   = load_form_config(form_type)
+    assigned_editor = get_user_by_id(sub.get("_assigned_to")) if sub.get("_assigned_to") else None
+    return render_template("editor_view.html",
+        sub=sub, form_type=form_type, config=config,
+        feedback=feedback, assigned_editor=assigned_editor,
+    )
+
+@app.route("/editor/submission/<form_type>/<sub_id>/feedback", methods=["POST"])
+@login_required
+def editor_submit_feedback(form_type, sub_id):
+    sub = find_submission(form_type, sub_id)
+    if not sub:
+        flash("Submission not found.", "error")
+        return redirect(url_for("editor_dashboard"))
+    uid  = session["user_id"]
+    role = session.get("user_role")
+    if role not in ("admin", "editor_in_chief") and sub.get("_assigned_to") != uid:
+        flash("Access denied.", "error")
+        return redirect(url_for("editor_dashboard"))
+    decision   = request.form.get("decision", "")
+    feedback_text   = request.form.get("feedback_text", "").strip()
+    suggestion_text = request.form.get("suggestion_text", "").strip()
+    fb_data = {
+        "submission_id":   sub_id,
+        "submission_type": form_type,
+        "editor_id":       uid,
+        "feedback_text":   feedback_text,
+        "suggestion_text": suggestion_text,
+        "decision":        decision,
+        "submitted_at":    datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    save_feedback(sub_id, fb_data)
+    status = "completed" if decision in ("accept", "reject") else "in_review"
+    update_submission_fields(form_type, sub_id, {"_editorial_status": status})
+    flash("Feedback submitted.", "success")
+    return redirect(url_for("editor_view", form_type=form_type, sub_id=sub_id))
+
+# ---------------------------------------------------------------------------
+# Editor feedback view (EIC/admin reads feedback alongside piece)
+# ---------------------------------------------------------------------------
+@app.route("/editor/submission/<form_type>/<sub_id>/review")
+@login_required
+def editor_review(form_type, sub_id):
+    if session.get("user_role") not in ("admin", "editor_in_chief"):
+        flash("Access denied.", "error")
+        return redirect(url_for("dashboard"))
+    sub      = find_submission(form_type, sub_id)
+    feedback = load_feedback(sub_id)
+    config   = load_form_config(form_type)
+    editor   = get_user_by_id(sub.get("_assigned_to")) if sub and sub.get("_assigned_to") else None
+    return render_template("editor_review.html",
+        sub=sub, form_type=form_type, config=config,
+        feedback=feedback, editor=editor,
+    )
 
 
 if __name__ == "__main__":

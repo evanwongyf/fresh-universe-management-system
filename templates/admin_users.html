@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Users — Fresh Universe CMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Users & Staff</h1>
+  {% if session.user_role == 'admin' %}
+  <button class="btn btn-primary" onclick="document.getElementById('inviteModal').style.display='flex'">+ Invite user</button>
+  {% endif %}
+</div>
+
+<!-- Registered users -->
+<p class="section-title" style="margin-bottom:12px;">Registered ({{ users|length }})</p>
+<div class="table-wrap" style="margin-bottom:32px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Name / Email</th>
+        <th>Role</th>
+        <th>Groups</th>
+        <th>Joined</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <div style="font-weight:500;">{{ u.display_name }}</div>
+          <div style="font-size:11px;color:var(--gray-3);">{{ u.email }}</div>
+        </td>
+        <td>
+          {% if session.user_role == 'admin' %}
+          <form method="POST" action="{{ url_for('admin_set_role', user_id=u.id) }}" style="display:flex;gap:6px;align-items:center;">
+            <select name="role" style="padding:4px 8px;font-size:12px;">
+              {% for r in ['admin','editor_in_chief','editor','user'] %}
+              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r.replace('_',' ').title() }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+          </form>
+          {% else %}
+          <span class="tag">{{ u.role.replace('_',' ').title() }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if session.user_role == 'admin' %}
+          <form method="POST" action="{{ url_for('admin_set_user_groups', user_id=u.id) }}" style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
+            {% for g in groups %}
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
+              <input type="checkbox" name="groups" value="{{ g.id }}" {% if g.id in (u.groups or []) %}checked{% endif %}>
+              {{ g.name }}
+            </label>
+            {% endfor %}
+            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+          </form>
+          {% else %}
+          {% for gid in (u.groups or []) %}
+            {% set grp = groups | selectattr('id','equalto',gid) | first %}
+            {% if grp %}<span class="tag">{{ grp.name }}</span>{% endif %}
+          {% endfor %}
+          {% endif %}
+        </td>
+        <td style="color:var(--gray-3);font-size:12px;">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+        <td style="text-align:right;">
+          {% if u.id != session.user_id %}
+          <span style="color:var(--gray-3);font-size:11px;">{{ 'You' if u.id == session.user_id else '' }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:var(--gray-3);padding:40px;">No users yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pending invites -->
+{% if session.user_role == 'admin' and pending_invites %}
+<p class="section-title" style="margin-bottom:12px;">Pending invites ({{ pending_invites|length }})</p>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Email</th><th>Created</th><th>Link</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for inv in pending_invites %}
+      <tr>
+        <td>{{ inv.email or '—' }}</td>
+        <td style="color:var(--gray-3);font-size:12px;">{{ inv.created_at[:10] if inv.created_at else '—' }}</td>
+        <td style="font-size:11px;color:var(--gray-2);word-break:break-all;">
+          {{ url_for('invite_signup', token=inv.token, _external=True) }}
+        </td>
+        <td style="text-align:right;">
+          <form method="POST" action="{{ url_for('admin_revoke_invite', token=inv.token) }}"
+                onsubmit="return confirm('Revoke this invite?')">
+            <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Invite modal -->
+{% if session.user_role == 'admin' %}
+<div id="inviteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:12px;padding:32px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,0.2);">
+    <h2 style="font-size:17px;font-weight:600;margin-bottom:20px;">Invite a new user</h2>
+    <form method="POST" action="{{ url_for('admin_create_invite') }}">
+      <div class="form-group">
+        <label>Email (optional — pre-fills signup form)</label>
+        <input type="email" name="email" placeholder="user@example.com">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <button type="submit" class="btn btn-primary">Generate invite link</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('inviteModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

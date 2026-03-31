@@ -11,9 +11,9 @@
 
   <form method="POST">
     <div class="form-group">
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" autocomplete="username" autofocus
-             value="{{ request.form.username or '' }}">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" autocomplete="email" autofocus
+             value="{{ request.form.email or '' }}">
     </div>
     <div class="form-group">
       <label for="password">Password</label>
@@ -23,9 +23,5 @@
       Log in
     </button>
   </form>
-
-  <div class="auth-footer">
-    No account? <a href="{{ url_for('signup') }}">Sign up</a>
-  </div>
 </div>
 {% endblock content_auth %}

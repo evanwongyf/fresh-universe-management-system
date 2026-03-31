@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Editorial Dashboard — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .status-unassigned { background:#f0f0f0; color:var(--gray-2); }
+  .status-pending    { background:#fff3cd; color:#856404; }
+  .status-in_review  { background:#cce5ff; color:#004085; }
+  .status-completed  { background:#d4edda; color:#155724; }
+  .deadline-urgent   { color:var(--red); font-weight:600; }
+  .deadline-ok       { color:var(--green); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Editorial Dashboard</h1>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Pending / In Review</div>
+    <div class="value">{{ pending|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Completed</div>
+    <div class="value">{{ completed|length }}</div>
+  </div>
+</div>
+
+{% if pending %}
+<p class="section-title" style="margin-bottom:12px;">Pending assignments</p>
+<div class="table-wrap" style="margin-bottom:32px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Submission</th>
+        <th>Form</th>
+        <th>Status</th>
+        <th>Deadline</th>
+        <th>Assigned to</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in pending %}
+      {% set editor = all_editors | selectattr('id','equalto', s._assigned_to) | first if s._assigned_to else None %}
+      <tr>
+        <td style="font-weight:500;">{{ s.title or s.name or s._id[:8] }}</td>
+        <td><span class="tag">{{ s._form_type_label }}</span></td>
+        <td><span class="status-badge status-{{ s._editorial_status or 'unassigned' }}">{{ (s._editorial_status or 'unassigned').replace('_',' ') }}</span></td>
+        <td>
+          {% if s._deadline_date %}
+            {% if s._days_left is not none %}
+              <span class="{{ 'deadline-urgent' if s._days_left <= 2 else 'deadline-ok' }}">
+                {{ s._days_left }}d left
+              </span>
+            {% else %}
+              {{ s._deadline_date[:10] }}
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td style="color:var(--gray-2);font-size:12px;">{{ editor.display_name if editor else '—' }}</td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('editor_view', form_type=s._form_type, sub_id=s._id) }}" class="btn btn-primary btn-sm">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if completed %}
+<p class="section-title" style="margin-bottom:12px;">Completed</p>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Submission</th>
+        <th>Form</th>
+        <th>Decision</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in completed %}
+      <tr>
+        <td style="font-weight:500;">{{ s.title or s.name or s._id[:8] }}</td>
+        <td><span class="tag">{{ s._form_type_label }}</span></td>
+        <td><span class="status-badge status-completed">Completed</span></td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('editor_review', form_type=s._form_type, sub_id=s._id) }}" class="btn btn-secondary btn-sm">View feedback</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not pending and not completed %}
+<div style="text-align:center;padding:80px 20px;color:var(--gray-3);">
+  No editorial assignments yet.
+</div>
+{% endif %}
+{% endblock %}

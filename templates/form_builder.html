@@ -157,7 +157,7 @@
           <div class="form-group">
             <label>Type</label>
             <select name="field_type_{{ i }}" onchange="onTypeChange(this, {{ i }})">
-              {% for t in ['text','email','url','number','textarea','select','radio','checkbox','file'] %}
+              {% for t in ['text','email','url','number','textarea','select','radio','checkbox','file','piece_count_selector'] %}
               <option value="{{ t }}" {% if field.type == t %}selected{% endif %}>{{ t }}</option>
               {% endfor %}
             </select>
@@ -183,6 +183,14 @@
           <div class="accept-group" id="accept_group_{{ i }}" {% if field.type != 'file' %}style="display:none;"{% endif %}>
             <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Accepted file types</label>
             <input type="text" name="field_accept_{{ i }}" value="{{ field.accept or '' }}" placeholder=".pdf,.jpg,.png,.doc">
+            <label style="font-size:12px;color:var(--gray-2);font-weight:500;margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" name="field_multiple_{{ i }}" value="1" style="accent-color:var(--blue);" {% if field.multiple %}checked{% endif %}>
+              Allow multiple files
+            </label>
+          </div>
+          <div class="max-count-group" id="max_count_group_{{ i }}" {% if field.type != 'piece_count_selector' %}style="display:none;"{% endif %}>
+            <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Max pieces (1–10)</label>
+            <input type="number" name="field_max_count_{{ i }}" value="{{ field.max_count or 5 }}" min="1" max="10" style="width:80px;">
           </div>
         </div>
         <button type="button" class="toggle-extra" onclick="toggleExtra({{ i }})">More options</button>
@@ -226,6 +234,7 @@
           <option value="radio">radio</option>
           <option value="checkbox">checkbox</option>
           <option value="file">file</option>
+          <option value="piece_count_selector">piece_count_selector</option>
         </select>
       </div>
       <div class="form-group" style="flex:0 0 auto;display:flex;align-items:flex-end;padding-bottom:2px;">
@@ -246,6 +255,14 @@
       <div class="accept-group" id="accept_group___IDX__" style="display:none;">
         <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Accepted file types</label>
         <input type="text" name="field_accept___IDX__" placeholder=".pdf,.jpg,.png,.doc">
+        <label style="font-size:12px;color:var(--gray-2);font-weight:500;margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" name="field_multiple___IDX__" value="1" style="accent-color:var(--blue);">
+          Allow multiple files
+        </label>
+      </div>
+      <div class="max-count-group" id="max_count_group___IDX__" style="display:none;">
+        <label style="font-size:12px;color:var(--gray-2);font-weight:500;">Max pieces (1–10)</label>
+        <input type="number" name="field_max_count___IDX__" value="5" min="1" max="10" style="width:80px;">
       </div>
     </div>
     <button type="button" class="toggle-extra" onclick="toggleExtra(__IDX__)">More options</button>
@@ -287,12 +304,14 @@
     const type = select.value;
     const badge = select.closest('.field-card').querySelector('.type-badge');
     if (badge) badge.textContent = type;
-    const og = document.getElementById('options_group_' + idx);
-    const ag = document.getElementById('accept_group_' + idx);
-    if (og) og.style.display = ['select','radio','checkbox'].includes(type) ? '' : 'none';
-    if (ag) ag.style.display = type === 'file' ? '' : 'none';
-    // Auto-open extra panel when type needs options/accept
-    if (['select','radio','checkbox','file'].includes(type)) {
+    const og  = document.getElementById('options_group_' + idx);
+    const ag  = document.getElementById('accept_group_' + idx);
+    const mcg = document.getElementById('max_count_group_' + idx);
+    if (og)  og.style.display  = ['select','radio','checkbox'].includes(type) ? '' : 'none';
+    if (ag)  ag.style.display  = type === 'file' ? '' : 'none';
+    if (mcg) mcg.style.display = type === 'piece_count_selector' ? '' : 'none';
+    // Auto-open extra panel when type needs extra options
+    if (['select','radio','checkbox','file','piece_count_selector'].includes(type)) {
       const extra = document.getElementById('extra_' + idx);
       if (extra) extra.classList.add('open');
     }

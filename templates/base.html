@@ -405,10 +405,13 @@
   {% block head %}{% endblock %}
 </head>
 <body>
-  {% if session.user %}
+  {% if session.user_id %}
 
   {# ── Determine active section for sidebar ── #}
-  {% set _ft = request.view_args.get('form_type', '') %}
+  {% set _ft   = request.view_args.get('form_type', '') %}
+  {% set _role = session.user_role %}
+  {% set _perms = session.permissions or [] %}
+
   {% set in_blog     = request.endpoint in ('blog', 'blog_new', 'blog_edit', 'blog_delete', 'blog_source')
                        or (_ft == 'blog_submission') %}
   {% set in_issues   = request.endpoint in ('issues', 'issue_new', 'issue_edit', 'issue_delete', 'issue_source')
@@ -417,7 +420,9 @@
                        or (_ft == 'staff_application') %}
   {% set in_masthead = request.endpoint in ('masthead', 'masthead_new', 'masthead_edit', 'masthead_delete') %}
   {% set in_pages    = request.endpoint in ('page_home', 'page_about', 'page_blog', 'page_interviews', 'page_submissions', 'site_settings') %}
-  {% set has_sidebar = in_blog or in_issues or in_staff or in_masthead or in_pages %}
+  {% set in_admin    = request.endpoint in ('admin_users', 'admin_set_role', 'admin_set_user_groups', 'admin_create_invite', 'admin_revoke_invite', 'admin_groups', 'admin_group_new', 'admin_group_edit', 'admin_group_delete') %}
+  {% set in_editor   = request.endpoint in ('editor_dashboard', 'editor_view', 'editor_submit_feedback', 'editor_review') %}
+  {% set has_sidebar = in_blog or in_issues or in_staff or in_masthead or in_pages or in_admin or in_editor %}
 
   <nav>
     <a class="nav-brand" href="{{ url_for('dashboard') }}">✦ Fresh Universe CMS</a>
@@ -429,6 +434,12 @@
       <a href="{{ url_for('masthead') }}"           {% if in_masthead %}class="active"{% endif %}>Masthead</a>
       <a href="{{ url_for('staff_applications') }}" {% if in_staff %}class="active"{% endif %}>Staff Apps</a>
       <a href="{{ url_for('page_home') }}"          {% if in_pages %}class="active"{% endif %}>Pages</a>
+      {% if _role in ('admin','editor_in_chief','editor') %}
+      <a href="{{ url_for('editor_dashboard') }}"   {% if in_editor %}class="active"{% endif %}>Editorial</a>
+      {% endif %}
+      {% if _role in ('admin','editor_in_chief') %}
+      <a href="{{ url_for('admin_users') }}"         {% if in_admin %}class="active"{% endif %}>Staff</a>
+      {% endif %}
 
       <!-- Profile icon + dropdown -->
       <div class="nav-profile">
@@ -440,8 +451,9 @@
         </button>
         <div class="nav-profile-menu" id="profileMenu">
           <div class="nav-profile-info">
-            <div class="nav-profile-name">{{ session.user }}</div>
-            <div class="nav-profile-sub">Administrator</div>
+            <div class="nav-profile-name">{{ session.display_name or session.user }}</div>
+            <div class="nav-profile-sub">{{ (_role or 'user').replace('_',' ').title() }}</div>
+            <div class="nav-profile-email" style="font-size:11px;color:var(--gray-3);margin-top:2px;">{{ session.user_email or '' }}</div>
           </div>
           <a href="{{ url_for('logout') }}">Log out</a>
         </div>
@@ -507,6 +519,22 @@
       <span class="sidebar-label">Site</span>
       <a href="{{ url_for('site_settings') }}"
          {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>
+      {% endif %}
+
+      {% if in_admin %}
+      <span class="sidebar-label">Staff</span>
+      <a href="{{ url_for('admin_users') }}"
+         {% if request.endpoint in ('admin_users','admin_set_role','admin_set_user_groups','admin_create_invite','admin_revoke_invite') %}class="active"{% endif %}>Users & Invites</a>
+      {% if _role == 'admin' %}
+      <a href="{{ url_for('admin_groups') }}"
+         {% if request.endpoint in ('admin_groups','admin_group_new','admin_group_edit','admin_group_delete') %}class="active"{% endif %}>User Groups</a>
+      {% endif %}
+      {% endif %}
+
+      {% if in_editor %}
+      <span class="sidebar-label">Editorial</span>
+      <a href="{{ url_for('editor_dashboard') }}"
+         {% if request.endpoint == 'editor_dashboard' %}class="active"{% endif %}>My Queue</a>
       {% endif %}
 
     </aside>

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Editor View — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .editor-wrap {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 24px;
+    align-items: start;
+  }
+  .piece-panel {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 10px;
+    overflow: hidden;
+    position: sticky;
+    top: 80px;
+  }
+  .piece-panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-4);
+    background: var(--off-white);
+  }
+  .piece-panel-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-1);
+  }
+  .piece-panel-body {
+    padding: 20px;
+  }
+  .piece-file-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-4);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    text-decoration: none;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  .piece-file-link:hover { background: var(--off-white); }
+  .piece-file-icon {
+    width: 32px;
+    height: 32px;
+    background: #e8effa;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .decision-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .decision-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 2px solid var(--gray-4);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .decision-option:has(input:checked) { border-color: var(--blue); background: #e8effa; }
+  .decision-option.accept:has(input:checked) { border-color: var(--green); background: #e6f4ec; }
+  .decision-option.reject:has(input:checked) { border-color: var(--red); background: #fde8e8; }
+  .decision-option input { display: none; }
+  .decision-option span { font-size: 13px; font-weight: 600; }
+  .feedback-already {
+    background: #e6f4ec;
+    border: 1px solid var(--green);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--green);
+  }
+  @media (max-width: 900px) {
+    .editor-wrap { grid-template-columns: 1fr; }
+    .piece-panel { position: static; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ sub.title or sub.name or 'Submission' }}</h1>
+    <div style="font-size:12px;color:var(--gray-3);margin-top:4px;">
+      {{ sub._form_type }} · submitted {{ sub._submitted_at[:10] if sub._submitted_at else '' }}
+      {% if assigned_editor %} · assigned to {{ assigned_editor.display_name }}{% endif %}
+    </div>
+  </div>
+  <a href="{{ url_for('editor_dashboard') }}" class="btn btn-secondary">← Back</a>
+</div>
+
+<div class="editor-wrap">
+
+  <!-- Left: piece files -->
+  <div>
+    <div class="piece-panel">
+      <div class="piece-panel-header"><h2>Submitted pieces</h2></div>
+      <div class="piece-panel-body">
+        {% set ns = namespace(found=false) %}
+        {# Piece-count-selector style: look for _count key #}
+        {% for field in config.fields %}
+          {% if field.type == 'piece_count_selector' %}
+            {% set count = sub.get(field.id ~ '_count', '1') | int %}
+            {% for n in range(1, count + 1) %}
+              {% set pname = sub.get(field.id ~ '_' ~ n ~ '_name', '') %}
+              {% set pfile = sub.get(field.id ~ '_' ~ n ~ '_file', '') %}
+              {% if pfile %}
+                {% set ns.found = true %}
+                <a class="piece-file-link" href="{{ pfile }}" target="_blank">
+                  <div class="piece-file-icon">📄</div>
+                  <span>{{ pname or ('Piece ' ~ n) }}</span>
+                </a>
+              {% endif %}
+            {% endfor %}
+          {% elif field.type == 'file' %}
+            {% set fval = sub.get(field.id, '') %}
+            {% if fval %}
+              {% set ns.found = true %}
+              {% if fval starts with '[' %}
+                {# multiple files stored as JSON list #}
+                {% import 'json' as json_mod %}
+                {% for furl in fval | from_json %}
+                <a class="piece-file-link" href="{{ furl }}" target="_blank">
+                  <div class="piece-file-icon">📎</div>
+                  <span>{{ field.label }} ({{ loop.index }})</span>
+                </a>
+                {% endfor %}
+              {% else %}
+              <a class="piece-file-link" href="{{ fval }}" target="_blank">
+                <div class="piece-file-icon">📎</div>
+                <span>{{ field.label }}</span>
+              </a>
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% if not ns.found %}
+        <p style="color:var(--gray-3);font-size:13px;">No files attached to this submission.</p>
+        {% endif %}
+
+        <!-- Submission metadata -->
+        <div style="margin-top:20px;border-top:1px solid var(--gray-4);padding-top:16px;">
+          <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-3);margin-bottom:10px;">Submission details</p>
+          {% for field in config.fields %}
+            {% if field.type not in ('file','piece_count_selector') %}
+              {% set val = sub.get(field.id, '') %}
+              {% if val %}
+              <div style="margin-bottom:10px;">
+                <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-3);">{{ field.label }}</p>
+                <p style="font-size:13px;color:var(--gray-1);margin-top:2px;line-height:1.5;">{{ val }}</p>
+              </div>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: feedback form -->
+  <div>
+    {% if feedback %}
+    <div class="feedback-already">
+      ✓ Feedback already submitted on {{ feedback.submitted_at[:10] }}. You can update it below.
+    </div>
+    {% endif %}
+
+    <div class="form-card">
+      <p class="section-title" style="margin-bottom:20px;">Editorial feedback</p>
+      <form method="POST" action="{{ url_for('editor_submit_feedback', form_type=sub._form_type, sub_id=sub._id) }}">
+
+        <div class="form-group">
+          <label>Decision</label>
+          <div class="decision-group">
+            <label class="decision-option accept">
+              <input type="radio" name="decision" value="accept" {% if feedback and feedback.decision == 'accept' %}checked{% endif %}>
+              <span style="color:var(--green);">✓ Accept</span>
+            </label>
+            <label class="decision-option reject">
+              <input type="radio" name="decision" value="reject" {% if feedback and feedback.decision == 'reject' %}checked{% endif %}>
+              <span style="color:var(--red);">✗ Reject</span>
+            </label>
+            <label class="decision-option">
+              <input type="radio" name="decision" value="pending" {% if not feedback or feedback.decision == 'pending' %}checked{% endif %}>
+              <span>⋯ Pending</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="feedback_text">Feedback</label>
+          <textarea id="feedback_text" name="feedback_text" rows="5"
+                    placeholder="Your overall feedback on this piece…">{{ feedback.feedback_text if feedback else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="suggestion_text">Suggestions</label>
+          <textarea id="suggestion_text" name="suggestion_text" rows="4"
+                    placeholder="Specific suggestions or edits…">{{ feedback.suggestion_text if feedback else '' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Submit feedback</button>
+          <a href="{{ url_for('editor_dashboard') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

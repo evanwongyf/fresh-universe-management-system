@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Create Account — Fresh Universe CMS{% endblock title %}
+
+{% block content_auth %}
+<div class="auth-card">
+  <div class="auth-logo">
+    <span>Fresh Universe</span>
+    <h2>You've been invited</h2>
+    <p>Create your account to get started</p>
+  </div>
+
+  <form method="POST">
+    <div class="form-group">
+      <label for="display_name">Display name</label>
+      <input type="text" id="display_name" name="display_name" autofocus
+             placeholder="Your name"
+             value="{{ request.form.display_name or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" autocomplete="email"
+             value="{{ request.form.email or invite.email or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="new-password">
+      <p class="form-hint">At least 6 characters</p>
+    </div>
+    <div class="form-group">
+      <label for="confirm">Confirm password</label>
+      <input type="password" id="confirm" name="confirm" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:11px;">
+      Create account
+    </button>
+  </form>
+
+  <div class="auth-footer">
+    Already have an account? <a href="{{ url_for('login') }}">Log in</a>
+  </div>
+</div>
+{% endblock content_auth %}

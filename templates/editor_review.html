@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Review Feedback — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .review-wrap {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 24px;
+    align-items: start;
+  }
+  .piece-file-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-4);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    text-decoration: none;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  .piece-file-link:hover { background: var(--off-white); }
+  .decision-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .decision-accept { background:#d4edda; color:#155724; }
+  .decision-reject { background:#fde8e8; color:var(--red); }
+  .decision-pending { background:#fff3cd; color:#856404; }
+  @media (max-width: 900px) {
+    .review-wrap { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ sub.title or sub.name or 'Submission' }}</h1>
+    <div style="font-size:12px;color:var(--gray-3);margin-top:4px;">
+      {{ sub._form_type }} · by {{ editor.display_name if editor else 'Unassigned' }}
+    </div>
+  </div>
+  <a href="{{ url_for('submissions_list', form_type=sub._form_type) }}" class="btn btn-secondary">← Submissions</a>
+</div>
+
+<div class="review-wrap">
+
+  <!-- Left: piece files + submission details -->
+  <div>
+    <div class="form-card" style="margin-bottom:20px;">
+      <p class="section-title" style="margin-bottom:16px;">Submitted pieces</p>
+      {% set ns = namespace(found=false) %}
+      {% for field in config.fields %}
+        {% if field.type == 'piece_count_selector' %}
+          {% set count = sub.get(field.id ~ '_count', '1') | int %}
+          {% for n in range(1, count + 1) %}
+            {% set pfile = sub.get(field.id ~ '_' ~ n ~ '_file', '') %}
+            {% set pname = sub.get(field.id ~ '_' ~ n ~ '_name', '') %}
+            {% if pfile %}
+              {% set ns.found = true %}
+              <a class="piece-file-link" href="{{ pfile }}" target="_blank">
+                <span>📄</span> {{ pname or ('Piece ' ~ n) }}
+              </a>
+            {% endif %}
+          {% endfor %}
+        {% elif field.type == 'file' %}
+          {% set fval = sub.get(field.id, '') %}
+          {% if fval %}
+            {% set ns.found = true %}
+            <a class="piece-file-link" href="{{ fval }}" target="_blank">
+              <span>📎</span> {{ field.label }}
+            </a>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if not ns.found %}
+      <p style="color:var(--gray-3);font-size:13px;">No files attached.</p>
+      {% endif %}
+    </div>
+
+    <div class="form-card">
+      <p class="section-title" style="margin-bottom:14px;">Submission details</p>
+      {% for field in config.fields %}
+        {% if field.type not in ('file','piece_count_selector') %}
+          {% set val = sub.get(field.id, '') %}
+          {% if val %}
+          <div style="margin-bottom:14px;">
+            <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-3);">{{ field.label }}</p>
+            <p style="font-size:13px;color:var(--gray-1);margin-top:3px;line-height:1.5;">{{ val }}</p>
+          </div>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Right: feedback -->
+  <div>
+    <div class="form-card">
+      <p class="section-title" style="margin-bottom:16px;">Editorial feedback</p>
+      {% if feedback %}
+        <div style="margin-bottom:16px;">
+          {% if feedback.decision == 'accept' %}
+            <span class="decision-pill decision-accept">✓ Accepted</span>
+          {% elif feedback.decision == 'reject' %}
+            <span class="decision-pill decision-reject">✗ Rejected</span>
+          {% else %}
+            <span class="decision-pill decision-pending">⋯ Pending</span>
+          {% endif %}
+          <span style="font-size:11px;color:var(--gray-3);margin-left:8px;">{{ feedback.submitted_at[:10] if feedback.submitted_at else '' }}</span>
+        </div>
+
+        {% if feedback.feedback_text %}
+        <div style="margin-bottom:16px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-3);margin-bottom:6px;">Feedback</p>
+          <p style="font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ feedback.feedback_text }}</p>
+        </div>
+        {% endif %}
+
+        {% if feedback.suggestion_text %}
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gray-3);margin-bottom:6px;">Suggestions</p>
+          <p style="font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ feedback.suggestion_text }}</p>
+        </div>
+        {% endif %}
+      {% else %}
+        <p style="color:var(--gray-3);font-size:13px;">No feedback submitted yet.</p>
+      {% endif %}
+    </div>
+
+    {% if session.user_role in ('admin','editor_in_chief') %}
+    <div style="margin-top:12px;text-align:right;">
+      <a href="{{ url_for('editor_view', form_type=sub._form_type, sub_id=sub._id) }}"
+         class="btn btn-secondary btn-sm">Edit feedback</a>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

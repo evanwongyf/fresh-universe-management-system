@@ -49,6 +49,37 @@
   .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
   .filter-bar input { flex: 1; min-width: 200px; }
   .count-badge { font-size: 13px; color: var(--gray-2); }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .status-unassigned { background:#f0f0f0; color:var(--gray-2); }
+  .status-pending    { background:#fff3cd; color:#856404; }
+  .status-in_review  { background:#cce5ff; color:#004085; }
+  .status-completed  { background:#d4edda; color:#155724; }
+  .assign-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .assign-modal-overlay.open { display: flex; }
+  .assign-modal {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  }
+  .assign-modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 18px; }
 </style>
 {% endblock %}
 
@@ -87,25 +118,55 @@
         {% if email_val %}<span class="sub-date">{{ email_val }}</span>{% endif %}
         {% if cat_val %}<span class="tag sub-tag">{{ cat_val }}</span>{% endif %}
         {% if sub._submitted_at %}<span class="sub-date">{{ sub._submitted_at[:10] }}</span>{% endif %}
+        <span class="status-badge status-{{ sub._editorial_status or 'unassigned' }}">{{ (sub._editorial_status or 'unassigned').replace('_',' ') }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation()">
+        {% if session.user_role in ('admin','editor_in_chief') %}
+        <button class="btn btn-secondary btn-sm"
+                onclick="openAssign('{{ sub._id }}', '{{ sub._form_type or form_type }}', '{{ name_val | replace("'","") }}')">
+          Assign
+        </button>
+        {% endif %}
+        {% if sub._editorial_status in ('pending','in_review','completed') %}
+        <a href="{{ url_for('editor_view', form_type=sub._form_type or form_type, sub_id=sub._id) }}"
+           class="btn btn-primary btn-sm">Edit</a>
+        {% endif %}
       </div>
       <span class="sub-chevron">▶</span>
     </div>
     <div class="sub-body">
       <div class="sub-fields">
         {% for field in config.fields %}
-        {% set val = sub.get(field.id, '') %}
-        {% if val %}
-        <div class="sub-field {% if field.type == 'textarea' or (val | string | length > 80) %}full{% endif %}">
-          <div class="sf-label">{{ field.label }}</div>
-          {% if field.type == 'file' and val %}
-          <div class="sf-value"><a href="{{ val }}" target="_blank" class="file-link">📎 Download / View file</a></div>
-          {% elif field.type == 'checkbox' and val is iterable and val is not string %}
-          <div class="sf-value">{{ val | join(', ') }}</div>
-          {% else %}
-          <div class="sf-value">{{ val }}</div>
+          {% if field.type == 'piece_count_selector' %}
+          {% set count = sub.get(field.id ~ '_count', '1') | int %}
+          {% for n in range(1, count + 1) %}
+          {% set pname = sub.get(field.id ~ '_' ~ n ~ '_name', '') %}
+          {% set pfile = sub.get(field.id ~ '_' ~ n ~ '_file', '') %}
+          {% if pname or pfile %}
+          <div class="sub-field">
+            <div class="sf-label">{{ field.label }} #{{ n }}</div>
+            <div class="sf-value">
+              {% if pname %}<div>{{ pname }}</div>{% endif %}
+              {% if pfile %}<a href="{{ pfile }}" target="_blank" class="file-link">📎 Download piece {{ n }}</a>{% endif %}
+            </div>
+          </div>
           {% endif %}
-        </div>
-        {% endif %}
+          {% endfor %}
+          {% else %}
+          {% set val = sub.get(field.id, '') %}
+          {% if val %}
+          <div class="sub-field {% if field.type == 'textarea' or (val | string | length > 80) %}full{% endif %}">
+            <div class="sf-label">{{ field.label }}</div>
+            {% if field.type == 'file' and val %}
+            <div class="sf-value"><a href="{{ val }}" target="_blank" class="file-link">📎 Download / View file</a></div>
+            {% elif field.type == 'checkbox' and val is iterable and val is not string %}
+            <div class="sf-value">{{ val | join(', ') }}</div>
+            {% else %}
+            <div class="sf-value">{{ val }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% endif %}
         {% endfor %}
         <div class="sub-field">
           <div class="sf-label">Submitted</div>
@@ -142,6 +203,34 @@
   <p style="font-size:13px;margin-top:8px;">Submissions will appear here once people fill out the form on the magazine site.</p>
 </div>
 {% endif %}
+
+<!-- Assign modal -->
+{% if session.user_role in ('admin','editor_in_chief') %}
+<div id="assignModal" class="assign-modal-overlay" onclick="if(event.target===this)closeAssign()">
+  <div class="assign-modal">
+    <h3>Assign submission</h3>
+    <form method="POST" id="assignForm">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label style="font-size:12px;font-weight:600;color:var(--gray-2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;">Assign to editor</label>
+        <select name="editor_id" style="width:100%;">
+          <option value="">— Unassign —</option>
+          {% for ed in all_editors %}
+          <option value="{{ ed.id }}">{{ ed.display_name }} ({{ ed.role }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label style="font-size:12px;font-weight:600;color:var(--gray-2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;">Deadline (days from today)</label>
+        <input type="number" name="deadline_days" value="7" min="1" max="365" style="width:100%;">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Assign</button>
+        <button type="button" onclick="closeAssign()" class="btn btn-secondary">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -163,6 +252,19 @@
     });
     const label = document.getElementById('count-label');
     if (label) label.textContent = count + ' submission' + (count !== 1 ? 's' : '');
+  }
+
+  function openAssign(subId, formType, name) {
+    const modal = document.getElementById('assignModal');
+    if (!modal) return;
+    modal.querySelector('h3').textContent = 'Assign: ' + name;
+    modal.querySelector('form').action = '/submissions/' + formType + '/' + subId + '/assign';
+    modal.classList.add('open');
+  }
+
+  function closeAssign() {
+    const modal = document.getElementById('assignModal');
+    if (modal) modal.classList.remove('open');
   }
 </script>
 {% endblock %}

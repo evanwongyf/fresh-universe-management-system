@@ -550,3 +550,170 @@ def upload_submission_file(filename, data: bytes, content_type: str = "applicati
     _client().put_object(Bucket=R2_BUCKET_NAME, Key=key, Body=data, ContentType=content_type)
     logger.info("Uploaded submission file: %s", key)
     return f"/r2-submission-file/{filename}"
+
+# ---------------------------------------------------------------------------
+# Site JSON helpers (users, groups, invites — stored as JSON not .py)
+# ---------------------------------------------------------------------------
+import json as _json
+
+def _load_site_json(filename):
+    key = f"{R2_PROJECT_FOLDER}/site/{filename}"
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return _json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        return None
+
+def _save_site_json(filename, data):
+    key = f"{R2_PROJECT_FOLDER}/site/{filename}"
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=key,
+        Body=_json.dumps(data, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    logger.info("Saved site JSON: %s", key)
+
+# ---------------------------------------------------------------------------
+# Users — fresh-universe/site/users.json
+# Each user: {id, email, display_name, password_hash, role, groups, created_at, invited_by}
+# ---------------------------------------------------------------------------
+def load_users():
+    data = _load_site_json("users.json")
+    return data if isinstance(data, list) else []
+
+def save_users(users):
+    _save_site_json("users.json", users)
+
+def get_user_by_id(user_id):
+    for u in load_users():
+        if u.get("id") == user_id:
+            return u
+    return None
+
+def get_user_by_email(email):
+    for u in load_users():
+        if u.get("email", "").lower() == email.lower():
+            return u
+    return None
+
+def upsert_user(user):
+    """Insert or replace a user by id."""
+    users = load_users()
+    for i, u in enumerate(users):
+        if u.get("id") == user["id"]:
+            users[i] = user
+            save_users(users)
+            return
+    users.append(user)
+    save_users(users)
+
+# ---------------------------------------------------------------------------
+# User groups — fresh-universe/site/user_groups.json
+# Each group: {id, name, permissions: [...]}
+# ---------------------------------------------------------------------------
+ALL_PERMISSION_KEYS = (
+    "can_view_blog", "can_edit_blog",
+    "can_view_issues", "can_edit_issues",
+    "can_view_submissions", "can_assign_submissions", "can_edit_submissions",
+    "can_view_masthead", "can_edit_masthead",
+    "can_view_staff_apps",
+    "can_view_pages", "can_edit_pages",
+    "can_view_settings",
+)
+
+EIC_PERMISSION_KEYS = (
+    "can_view_blog", "can_edit_blog",
+    "can_view_issues", "can_edit_issues",
+    "can_view_submissions", "can_assign_submissions", "can_edit_submissions",
+    "can_view_masthead", "can_edit_masthead",
+    "can_view_staff_apps",
+    "can_view_pages", "can_edit_pages",
+)
+
+def load_user_groups():
+    data = _load_site_json("user_groups.json")
+    return data if isinstance(data, list) else []
+
+def save_user_groups(groups):
+    _save_site_json("user_groups.json", groups)
+
+def get_group_by_id(group_id):
+    for g in load_user_groups():
+        if g.get("id") == group_id:
+            return g
+    return None
+
+# ---------------------------------------------------------------------------
+# Invites — fresh-universe/site/invites.json
+# Each invite: {token, email, created_by, created_at, used, used_by_user_id}
+# ---------------------------------------------------------------------------
+def load_invites():
+    data = _load_site_json("invites.json")
+    return data if isinstance(data, list) else []
+
+def save_invites(invites):
+    _save_site_json("invites.json", invites)
+
+def get_invite_by_token(token):
+    for inv in load_invites():
+        if inv.get("token") == token:
+            return inv
+    return None
+
+# ---------------------------------------------------------------------------
+# Editorial feedback — fresh-universe/editorial-feedback/<submission_id>.json
+# ---------------------------------------------------------------------------
+def load_feedback(submission_id):
+    key = f"{R2_PROJECT_FOLDER}/editorial-feedback/{submission_id}.json"
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return _json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        return None
+
+def save_feedback(submission_id, data):
+    key = f"{R2_PROJECT_FOLDER}/editorial-feedback/{submission_id}.json"
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=key,
+        Body=_json.dumps(data, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    logger.info("Saved editorial feedback: %s", key)
+
+# ---------------------------------------------------------------------------
+# Update submission fields in-place (load → merge → re-save)
+# ---------------------------------------------------------------------------
+def update_submission_fields(form_type, sub_id, fields: dict):
+    """Merge `fields` into an existing submission JSON and re-save it."""
+    prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
+    for key in _list_keys(prefix):
+        if key.endswith(f"/{sub_id}.json"):
+            try:
+                obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+                data = _json.loads(obj["Body"].read().decode("utf-8"))
+                data.update(fields)
+                _client().put_object(
+                    Bucket=R2_BUCKET_NAME, Key=key,
+                    Body=_json.dumps(data, indent=2).encode("utf-8"),
+                    ContentType="application/json",
+                )
+                logger.info("Updated submission fields: %s", key)
+                return True
+            except Exception as e:
+                logger.error("Failed to update submission %s: %s", key, e)
+                return False
+    logger.warning("Submission not found for update: %s/%s", form_type, sub_id)
+    return False
+
+def find_submission(form_type, sub_id):
+    """Find and return a single submission by id."""
+    prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
+    for key in _list_keys(prefix):
+        if key.endswith(f"/{sub_id}.json"):
+            try:
+                obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+                return _json.loads(obj["Body"].read().decode("utf-8"))
+            except Exception as e:
+                logger.error("Failed to load submission %s: %s", key, e)
+                return None
+    return None
