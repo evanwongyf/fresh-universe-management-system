@@ -54,9 +54,18 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">Submissions</span></h1>
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    {% if back_url %}
+    <a href="{{ back_url }}" style="color:var(--gray-3);text-decoration:none;font-size:18px;line-height:1;" title="Back">←</a>
+    {% endif %}
+    <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">Submissions{% if version_filter %} — {{ version_filter }}{% endif %}</span></h1>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if editing_version %}
+    <a href="{{ url_for('form_version_edit', form_type=form_type, version_name=editing_version) }}" class="btn btn-secondary">Edit form</a>
+    {% else %}
     <a href="{{ url_for('form_builder', form_type=form_type) }}" class="btn btn-secondary">Edit form</a>
+    {% endif %}
   </div>
 </div>
 
@@ -102,6 +111,12 @@
           <div class="sf-label">Submitted</div>
           <div class="sf-value">{{ sub._submitted_at or '—' }}</div>
         </div>
+        {% if sub._form_version %}
+        <div class="sub-field">
+          <div class="sf-label">Form version</div>
+          <div class="sf-value" style="font-size:12px;color:var(--blue);">{{ sub._form_version }}</div>
+        </div>
+        {% endif %}
         <div class="sub-field">
           <div class="sf-label">ID</div>
           <div class="sf-value" style="font-size:11px;color:var(--gray-3);">{{ sub._id }}</div>
@@ -110,6 +125,9 @@
       <div class="sub-actions">
         <form method="POST" action="{{ url_for('submission_delete', form_type=form_type, sub_id=sub._id) }}"
               onsubmit="return confirm('Delete this submission? This cannot be undone.')">
+          {% if version_filter %}
+          <input type="hidden" name="version" value="{{ version_filter }}">
+          {% endif %}
           <button type="submit" class="btn btn-danger btn-sm">Delete</button>
         </form>
       </div>

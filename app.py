@@ -29,6 +29,8 @@ from r2_storage import (
     R2_PUBLIC_BASE_URL,
     load_form_config, save_form_config,
     load_submissions, delete_submission,
+    get_active_form_version, set_active_form_version, clear_active_form_version,
+    list_form_versions, load_form_version, save_form_version, delete_form_version,
     R2_PROJECT_FOLDER, R2_BUCKET_NAME, _client,
 )
 
@@ -502,15 +504,13 @@ def staff_applications():
         description = request.form.get("description", "").strip()
         apply_link  = request.form.get("apply_link", "").strip()
         roles = []
-        i = 0
-        while True:
+        role_count = int(request.form.get("role_count", 0))
+        for i in range(role_count):
             name = request.form.get(f"role_name_{i}", "").strip()
             desc = request.form.get(f"role_desc_{i}", "").strip()
-            if not name and not desc:
-                break
             if name:
-                roles.append({"name": name, "description": desc})
-            i += 1
+                is_hiring = request.form.get(f"role_hiring_{i}") == "1"
+                roles.append({"name": name, "description": desc, "is_hiring": is_hiring})
         config = {"is_open": is_open, "heading": heading, "description": description,
                   "apply_link": apply_link, "roles": roles}
         save_staff_applications_to_r2(config)
@@ -812,45 +812,148 @@ _FORM_LABELS = {
     "staff_application": "Staff Application Form",
 }
 
+def _parse_form_fields(request):
+    """Parse dynamic field inputs from a form builder POST request."""
+    fields = []
+    i = 0
+    while True:
+        fid = request.form.get(f"field_id_{i}", "").strip()
+        if not fid and request.form.get(f"field_label_{i}") is None:
+            break
+        if fid:
+            ftype    = request.form.get(f"field_type_{i}", "text")
+            flabel   = request.form.get(f"field_label_{i}", "").strip()
+            freq     = request.form.get(f"field_required_{i}") == "1"
+            fph      = request.form.get(f"field_placeholder_{i}", "").strip()
+            faccept  = request.form.get(f"field_accept_{i}", "").strip()
+            foptions_raw = request.form.get(f"field_options_{i}", "").strip()
+            foptions = [o.strip() for o in foptions_raw.splitlines() if o.strip()]
+            field = {"id": fid, "label": flabel, "type": ftype, "required": freq}
+            if fph:      field["placeholder"] = fph
+            if faccept:  field["accept"]      = faccept
+            if foptions: field["options"]      = foptions
+            fields.append(field)
+        i += 1
+    return fields
+
 @app.route("/forms/<form_type>", methods=["GET", "POST"])
 @login_required
 def form_builder(form_type):
     if form_type not in _FORM_LABELS:
         flash("Unknown form type.", "error")
         return redirect(url_for("dashboard"))
-    config = load_form_config(form_type)
+    active_version = get_active_form_version(form_type)
+    versions = list_form_versions(form_type)
+    # Load config from active version if set, else legacy
+    if active_version:
+        config = load_form_version(form_type, active_version) or load_form_config(form_type)
+    else:
+        config = load_form_config(form_type)
     if request.method == "POST":
         config["title"]          = request.form.get("title", "").strip()
         config["description"]    = request.form.get("description", "").strip()
         config["open"]           = request.form.get("open") == "1"
         config["closed_message"] = request.form.get("closed_message", "").strip()
-        # Rebuild fields from dynamic form inputs
-        fields = []
-        i = 0
-        while True:
-            fid = request.form.get(f"field_id_{i}", "").strip()
-            if not fid and request.form.get(f"field_label_{i}") is None:
-                break
-            if fid:
-                ftype    = request.form.get(f"field_type_{i}", "text")
-                flabel   = request.form.get(f"field_label_{i}", "").strip()
-                freq     = request.form.get(f"field_required_{i}") == "1"
-                fph      = request.form.get(f"field_placeholder_{i}", "").strip()
-                faccept  = request.form.get(f"field_accept_{i}", "").strip()
-                foptions_raw = request.form.get(f"field_options_{i}", "").strip()
-                foptions = [o.strip() for o in foptions_raw.splitlines() if o.strip()]
-                field = {"id": fid, "label": flabel, "type": ftype, "required": freq}
-                if fph:      field["placeholder"] = fph
-                if faccept:  field["accept"]      = faccept
-                if foptions: field["options"]      = foptions
-                fields.append(field)
-            i += 1
-        config["fields"] = fields
-        save_form_config(form_type, config)
+        config["fields"] = _parse_form_fields(request)
+        if active_version:
+            save_form_version(form_type, active_version, config)
+        else:
+            save_form_config(form_type, config)
         flash(f"{_FORM_LABELS[form_type]} saved.", "success")
         return redirect(url_for("form_builder", form_type=form_type))
     return render_template("form_builder.html", form_type=form_type,
-                           label=_FORM_LABELS[form_type], config=config)
+                           label=_FORM_LABELS[form_type], config=config,
+                           active_version=active_version, versions=versions)
+
+# ---------------------------------------------------------------------------
+# Form versioning — create, activate, delete versions
+# ---------------------------------------------------------------------------
+@app.route("/forms/<form_type>/landing")
+@login_required
+def form_landing(form_type):
+    if form_type not in _FORM_LABELS:
+        flash("Unknown form type.", "error")
+        return redirect(url_for("dashboard"))
+    versions = list_form_versions(form_type)
+    active = get_active_form_version(form_type)
+    return render_template("form_landing.html", form_type=form_type,
+                           label=_FORM_LABELS[form_type], versions=versions, active=active)
+
+# keep old /versions URL as alias for backwards compat
+@app.route("/forms/<form_type>/versions")
+@login_required
+def form_versions(form_type):
+    return redirect(url_for("form_landing", form_type=form_type))
+
+@app.route("/forms/<form_type>/versions/new", methods=["POST"])
+@login_required
+def form_version_new(form_type):
+    if form_type not in _FORM_LABELS:
+        return redirect(url_for("dashboard"))
+    version_name = re.sub(r"[^\w\-]", "_", request.form.get("version_name", "").strip())
+    if not version_name:
+        flash("Version name is required.", "error")
+        return redirect(url_for("form_landing", form_type=form_type))
+    # Copy current active config as starting point
+    existing = list_form_versions(form_type)
+    if version_name in existing:
+        flash("A version with that name already exists.", "error")
+        return redirect(url_for("form_landing", form_type=form_type))
+    base_config = load_form_config(form_type)
+    save_form_version(form_type, version_name, base_config)
+    flash(f"Version '{version_name}' created.", "success")
+    return redirect(url_for("form_landing", form_type=form_type))
+
+@app.route("/forms/<form_type>/versions/<version_name>/activate", methods=["POST"])
+@login_required
+def form_version_activate(form_type, version_name):
+    if form_type not in _FORM_LABELS:
+        return redirect(url_for("dashboard"))
+    set_active_form_version(form_type, version_name)
+    flash(f"Version '{version_name}' is now active.", "success")
+    return redirect(url_for("form_landing", form_type=form_type))
+
+@app.route("/forms/<form_type>/versions/deactivate", methods=["POST"])
+@login_required
+def form_version_deactivate(form_type):
+    if form_type not in _FORM_LABELS:
+        return redirect(url_for("dashboard"))
+    clear_active_form_version(form_type)
+    flash("Active version cleared — using default form.", "success")
+    return redirect(url_for("form_landing", form_type=form_type))
+
+@app.route("/forms/<form_type>/versions/<version_name>/edit", methods=["GET", "POST"])
+@login_required
+def form_version_edit(form_type, version_name):
+    if form_type not in _FORM_LABELS:
+        flash("Unknown form type.", "error")
+        return redirect(url_for("dashboard"))
+    config = load_form_version(form_type, version_name) or load_form_config(form_type)
+    active_version = get_active_form_version(form_type)
+    if request.method == "POST":
+        config["title"]          = request.form.get("title", "").strip()
+        config["description"]    = request.form.get("description", "").strip()
+        config["open"]           = request.form.get("open") == "1"
+        config["closed_message"] = request.form.get("closed_message", "").strip()
+        config["fields"] = _parse_form_fields(request)
+        save_form_version(form_type, version_name, config)
+        flash(f"Version '{version_name}' saved.", "success")
+        return redirect(url_for("form_version_edit", form_type=form_type, version_name=version_name))
+    return render_template("form_builder.html", form_type=form_type,
+                           label=f"{_FORM_LABELS[form_type]} — {version_name}",
+                           config=config, active_version=active_version,
+                           versions=list_form_versions(form_type),
+                           editing_version=version_name,
+                           back_url=url_for("form_landing", form_type=form_type))
+
+@app.route("/forms/<form_type>/versions/<version_name>/delete", methods=["POST"])
+@login_required
+def form_version_delete(form_type, version_name):
+    if form_type not in _FORM_LABELS:
+        return redirect(url_for("dashboard"))
+    delete_form_version(form_type, version_name)
+    flash(f"Version '{version_name}' deleted.", "success")
+    return redirect(url_for("form_landing", form_type=form_type))
 
 # ---------------------------------------------------------------------------
 # Submissions viewer
@@ -861,16 +964,43 @@ def submissions_list(form_type):
     if form_type not in _FORM_LABELS:
         flash("Unknown form type.", "error")
         return redirect(url_for("dashboard"))
-    subs = load_submissions(form_type)
-    config = load_form_config(form_type)
+    version_filter = request.args.get("version")
+    subs = load_submissions(form_type, version_name=version_filter if version_filter else None)
+    versions = list_form_versions(form_type)
+    # Config: use version-specific config for field labels if viewing a specific version
+    if version_filter:
+        config = load_form_version(form_type, version_filter) or load_form_config(form_type)
+    else:
+        config = load_form_config(form_type)
     return render_template("submissions_list.html", form_type=form_type,
-                           label=_FORM_LABELS[form_type], submissions=subs, config=config)
+                           label=_FORM_LABELS[form_type], submissions=subs, config=config,
+                           version_list=versions, version_filter=version_filter)
+
+@app.route("/submissions/<form_type>/v/<version_name>")
+@login_required
+def submissions_version(form_type, version_name):
+    if form_type not in _FORM_LABELS:
+        flash("Unknown form type.", "error")
+        return redirect(url_for("dashboard"))
+    subs = load_submissions(form_type, version_name=version_name)
+    config = load_form_version(form_type, version_name) or load_form_config(form_type)
+    active = get_active_form_version(form_type)
+    return render_template("submissions_list.html", form_type=form_type,
+                           label=_FORM_LABELS[form_type], submissions=subs, config=config,
+                           version_list=list_form_versions(form_type),
+                           version_filter=version_name,
+                           back_url=url_for("form_landing", form_type=form_type),
+                           editing_version=version_name,
+                           active_version=active)
 
 @app.route("/submissions/<form_type>/<sub_id>/delete", methods=["POST"])
 @login_required
 def submission_delete(form_type, sub_id):
+    version = request.form.get("version")
     delete_submission(form_type, sub_id)
     flash("Submission deleted.", "success")
+    if version:
+        return redirect(url_for("submissions_version", form_type=form_type, version_name=version))
     return redirect(url_for("submissions_list", form_type=form_type))
 
 # Proxy for submission files (same as magazine)

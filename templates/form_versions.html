@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} Versions — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .version-card {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .version-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-1);
+    flex: 1;
+  }
+  .version-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .version-badge.active { background: #e6f4ec; color: var(--green); }
+  .version-badge.inactive { background: var(--off-white); color: var(--gray-3); }
+  .version-actions { display: flex; gap: 8px; align-items: center; }
+  .new-version-form {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .new-version-form .form-group { flex: 1; margin-bottom: 0; }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">— Versions</span></h1>
+  <a href="{{ url_for('form_builder', form_type=form_type) }}" class="btn btn-secondary">← Back to form</a>
+</div>
+
+<div style="background:var(--off-white);border:1px solid var(--gray-4);border-radius:8px;padding:14px 20px;margin-bottom:24px;font-size:13px;color:var(--gray-2);">
+  Create different versions of this form (e.g. for different issues or cycles). Only one version can be active at a time — the active version is what visitors see on the magazine website and where submissions are stored.
+</div>
+
+<!-- Create new version -->
+<p class="section-title">Create a new version</p>
+<form method="POST" action="{{ url_for('form_version_new', form_type=form_type) }}" class="new-version-form">
+  <div class="form-group">
+    <label>Version name <span style="font-weight:400;text-transform:none;font-size:11px;">(letters, numbers, hyphens only — e.g. "issue-2" or "spring-2026")</span></label>
+    <input type="text" name="version_name" placeholder="e.g. issue-2" required pattern="[\w\-]+">
+  </div>
+  <button type="submit" class="btn btn-primary">Create version</button>
+</form>
+
+<!-- Version list -->
+<p class="section-title">All versions</p>
+
+{% if active and active not in versions %}
+<div class="flash error" style="margin-bottom:16px;">Active version "{{ active }}" not found. It may have been deleted.</div>
+{% endif %}
+
+{% if active %}
+<form method="POST" action="{{ url_for('form_version_deactivate', form_type=form_type) }}" style="margin-bottom:16px;">
+  <button type="submit" class="btn btn-secondary btn-sm"
+    onclick="return confirm('Clear the active version? The form will fall back to the default config.')">
+    Clear active version
+  </button>
+</form>
+{% endif %}
+
+{% if versions %}
+<div>
+  {% for v in versions %}
+  <div class="version-card">
+    <span class="version-name">{{ v }}</span>
+    {% if v == active %}
+    <span class="version-badge active">● Active</span>
+    {% else %}
+    <span class="version-badge inactive">Inactive</span>
+    {% endif %}
+    <div class="version-actions">
+      <a href="{{ url_for('form_version_edit', form_type=form_type, version_name=v) }}" class="btn btn-secondary btn-sm">Edit</a>
+      {% if v != active %}
+      <form method="POST" action="{{ url_for('form_version_activate', form_type=form_type, version_name=v) }}">
+        <button type="submit" class="btn btn-primary btn-sm">Set active</button>
+      </form>
+      <form method="POST" action="{{ url_for('form_version_delete', form_type=form_type, version_name=v) }}"
+            onsubmit="return confirm('Delete version \'{{ v }}\'? This cannot be undone.')">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p style="font-size:15px;">No versions yet.</p>
+  <p style="font-size:13px;margin-top:8px;">Create a version above to get started. The default form is used until a version is activated.</p>
+</div>
+{% endif %}
+{% endblock %}

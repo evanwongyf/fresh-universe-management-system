@@ -35,6 +35,30 @@
   }
   .status-pill.open  { background:#e6f4ec; color:var(--green); border-color:var(--green); }
   .status-pill.closed { background:#fde8e8; color:var(--red);   border-color:var(--red); }
+  .hiring-toggle {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  }
+  .hiring-toggle label {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0;
+    color: var(--gray-2);
+  }
+  .hiring-switch {
+    position: relative; display: inline-block; width: 36px; height: 20px;
+  }
+  .hiring-switch input { opacity: 0; width: 0; height: 0; }
+  .hiring-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--gray-4); border-radius: 20px;
+    transition: background 0.2s;
+  }
+  .hiring-slider:before {
+    content: ""; position: absolute;
+    height: 14px; width: 14px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: transform 0.2s;
+  }
+  .hiring-switch input:checked + .hiring-slider { background: var(--green); }
+  .hiring-switch input:checked + .hiring-slider:before { transform: translateX(16px); }
 </style>
 {% endblock %}
 
@@ -83,6 +107,7 @@
   </div>
 
   <!-- Roles -->
+  <input type="hidden" name="role_count" id="role_count" value="{{ config.roles | length }}">
   <div class="form-card" style="margin-bottom:24px;">
     <p class="section-title" style="margin-bottom:20px;">Available roles</p>
     <div id="roles-list">
@@ -95,10 +120,20 @@
           <input type="text" name="role_name_{{ loop.index0 }}" value="{{ role.name or '' }}"
                  placeholder="e.g. Literary Editors">
         </div>
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group">
           <label>Description</label>
           <textarea name="role_desc_{{ loop.index0 }}" rows="3"
                     placeholder="What does this role involve?">{{ role.description or '' }}</textarea>
+        </div>
+        <div class="hiring-toggle">
+          <label>
+            <span class="hiring-switch">
+              <input type="checkbox" name="role_hiring_{{ loop.index0 }}" value="1"
+                     {% if role.is_hiring %}checked{% endif %}>
+              <span class="hiring-slider"></span>
+            </span>
+            Currently hiring
+          </label>
         </div>
       </div>
       {% endfor %}
@@ -127,9 +162,18 @@
         <label>Role name</label>
         <input type="text" name="role_name_${idx}" placeholder="e.g. Literary Editors">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group">
         <label>Description</label>
         <textarea name="role_desc_${idx}" rows="3" placeholder="What does this role involve?"></textarea>
+      </div>
+      <div class="hiring-toggle">
+        <label>
+          <span class="hiring-switch">
+            <input type="checkbox" name="role_hiring_${idx}" value="1">
+            <span class="hiring-slider"></span>
+          </span>
+          Currently hiring
+        </label>
       </div>`;
     list.appendChild(block);
     roleCount++;
@@ -145,10 +189,13 @@
   function renumberRoles() {
     document.querySelectorAll('.role-block').forEach((block, i) => {
       block.querySelector('.role-num').textContent = `Role ${i + 1}`;
-      block.querySelector('input[type="text"]').name = `role_name_${i}`;
-      block.querySelector('textarea').name           = `role_desc_${i}`;
+      block.querySelector('input[type="text"]').name    = `role_name_${i}`;
+      block.querySelector('textarea').name              = `role_desc_${i}`;
+      const cb = block.querySelector('input[type="checkbox"]');
+      if (cb) cb.name = `role_hiring_${i}`;
     });
     roleCount = document.querySelectorAll('.role-block').length;
+    document.getElementById('role_count').value = roleCount;
   }
 </script>
 {% endblock %}

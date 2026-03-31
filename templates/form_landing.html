@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .version-row {
+    background: var(--white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .version-row:hover { background: #fafbfc; }
+  .version-row.default-row {
+    border-style: dashed;
+    background: var(--off-white);
+  }
+  .version-row-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-1);
+    flex: 1;
+  }
+  .version-row-name .default-tag {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--gray-3);
+    margin-left: 8px;
+  }
+  /* Toggle switch */
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+  .toggle-label { font-size: 12px; font-weight: 600; min-width: 52px; text-align: right; }
+  .toggle-label.on  { color: var(--green); }
+  .toggle-label.off { color: var(--gray-3); }
+  .toggle-switch {
+    position: relative; display: inline-block;
+    width: 40px; height: 22px; cursor: pointer;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: var(--gray-4); border-radius: 22px; transition: background 0.2s;
+  }
+  .toggle-slider:before {
+    content: ""; position: absolute;
+    height: 16px; width: 16px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%;
+    transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .toggle-switch input:checked + .toggle-slider { background: var(--green); }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+  .version-actions { display: flex; gap: 6px; }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-3); }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 12px; padding: 32px;
+    width: 100%; max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ label }}</h1>
+  <button class="btn btn-primary" onclick="openModal()">+ New version</button>
+</div>
+
+<div style="background:var(--off-white);border:1px solid var(--gray-4);border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:13px;color:var(--gray-2);">
+  Manage form versions. Toggle a version active to show it on the magazine website. Only one can be active at a time.
+</div>
+
+<div id="versions-list">
+
+  <!-- Default row — always present, active when no named version is set -->
+  {% set default_is_active = (active == None or active == '') %}
+  <div class="version-row default-row">
+    <span class="version-row-name">
+      Default
+      <span class="default-tag">base form configuration</span>
+    </span>
+    <div class="version-actions">
+      <a href="{{ url_for('form_builder', form_type=form_type) }}" class="btn btn-secondary btn-sm">Edit</a>
+      <a href="{{ url_for('submissions_list', form_type=form_type) }}" class="btn btn-secondary btn-sm">Submissions</a>
+    </div>
+    <div class="toggle-wrap">
+      <span class="toggle-label {{ 'on' if default_is_active else 'off' }}" id="lbl-__default__">{{ 'Active' if default_is_active else 'Inactive' }}</span>
+      <label class="toggle-switch">
+        <input type="checkbox" {% if default_is_active %}checked{% endif %}
+               onchange="toggleVersion(this, '__default__')" id="tog-__default__">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Named versions -->
+  {% for v in versions %}
+  {% set is_active = (v == active) %}
+  <div class="version-row" id="row-{{ v }}">
+    <span class="version-row-name">{{ v }}</span>
+    <div class="version-actions">
+      <a href="{{ url_for('form_version_edit', form_type=form_type, version_name=v) }}" class="btn btn-secondary btn-sm">Edit</a>
+      <a href="{{ url_for('submissions_version', form_type=form_type, version_name=v) }}" class="btn btn-secondary btn-sm">Submissions</a>
+      {% if not is_active %}
+      <form method="POST" action="{{ url_for('form_version_delete', form_type=form_type, version_name=v) }}"
+            onsubmit="return confirm('Delete version \'{{ v }}\'? This cannot be undone.')">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="toggle-wrap">
+      <span class="toggle-label {{ 'on' if is_active else 'off' }}" id="lbl-{{ v }}">{{ 'Active' if is_active else 'Inactive' }}</span>
+      <label class="toggle-switch">
+        <input type="checkbox" {% if is_active %}checked{% endif %}
+               onchange="toggleVersion(this, '{{ v }}')" id="tog-{{ v }}">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+{% if not versions %}
+<div style="text-align:center;padding:24px 20px;color:var(--gray-3);font-size:13px;">
+  No named versions yet. Click <strong>+ New version</strong> to create one.
+</div>
+{% endif %}
+
+<!-- Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h2>Create new version</h2>
+    <form method="POST" action="{{ url_for('form_version_new', form_type=form_type) }}">
+      <div class="form-group">
+        <label>Version name</label>
+        <input type="text" name="version_name" id="version-name-input"
+               placeholder="e.g. issue-2 or spring-2026"
+               required pattern="[\w\-]+" autofocus>
+        <p class="form-hint" style="margin-top:6px;">Letters, numbers, hyphens only. Starts as a copy of the current default form.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const ACTIVATE_URLS = {
+    {% for v in versions %}
+    "{{ v }}": "{{ url_for('form_version_activate', form_type=form_type, version_name=v) }}",
+    {% endfor %}
+  };
+  const DEACTIVATE_URL  = "{{ url_for('form_version_deactivate', form_type=form_type) }}";
+  // All toggle IDs: default + named versions
+  const ALL_IDS = ['__default__'{% for v in versions %}, '{{ v }}'{% endfor %}];
+  let currentActive = {{ ('"' + active + '"') if active else '"__default__"' }};
+
+  function toggleVersion(checkbox, version) {
+    checkbox.disabled = true;
+
+    if (checkbox.checked) {
+      // Turn off all others visually
+      ALL_IDS.forEach(id => {
+        if (id !== version) {
+          const tog = document.getElementById('tog-' + id);
+          const lbl = document.getElementById('lbl-' + id);
+          if (tog) { tog.checked = false; tog.disabled = false; }
+          if (lbl) { lbl.textContent = 'Inactive'; lbl.className = 'toggle-label off'; }
+        }
+      });
+      currentActive = version;
+      const lbl = document.getElementById('lbl-' + version);
+      if (lbl) { lbl.textContent = 'Active'; lbl.className = 'toggle-label on'; }
+
+      if (version === '__default__') {
+        submitForm(DEACTIVATE_URL);  // deactivate = use default
+      } else {
+        submitForm(ACTIVATE_URLS[version]);
+      }
+    } else {
+      // Unchecking: re-check self, force user to check another instead
+      checkbox.checked = true;
+      checkbox.disabled = false;
+    }
+  }
+
+  function submitForm(action) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = action;
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  function openModal() {
+    document.getElementById('modal-backdrop').classList.add('open');
+    setTimeout(() => document.getElementById('version-name-input').focus(), 50);
+  }
+  function closeModal() {
+    document.getElementById('modal-backdrop').classList.remove('open');
+  }
+  function closeModalOutside(e) {
+    if (e.target === document.getElementById('modal-backdrop')) closeModal();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+{% endblock %}

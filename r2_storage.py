@@ -261,6 +261,7 @@ def save_staff_applications_to_r2(config):
         role_lines.append("        {")
         role_lines.append(f"            \"name\": {json.dumps(r['name'])},")
         role_lines.append(f"            \"description\": {json.dumps(r['description'])},")
+        role_lines.append(f"            \"is_hiring\": {repr(bool(r.get('is_hiring', False)))},")
         role_lines.append("        },")
     roles_block = "\n".join(role_lines)
     is_open_val = repr(config.get("is_open", True))
@@ -397,10 +398,19 @@ def _form_key(form_type):
 
 def load_form_config(form_type):
     import json
+    # Try active version first
+    active = get_active_form_version(form_type)
+    if active:
+        key = f"{R2_PROJECT_FOLDER}/forms/{form_type}/v_{active}.json"
+        try:
+            obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+            return json.loads(obj["Body"].read().decode("utf-8"))
+        except Exception:
+            pass
+    # Fall back to legacy flat file
     key = _form_key(form_type)
-    s3 = _client()
     try:
-        obj = s3.get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
         return json.loads(obj["Body"].read().decode("utf-8"))
     except Exception:
         return _FORM_DEFAULTS.get(form_type, {})
@@ -416,7 +426,75 @@ def save_form_config(form_type, config):
     logger.info("Saved form config: %s", key)
 
 # ---------------------------------------------------------------------------
+# Form versioning
+# ---------------------------------------------------------------------------
+def _form_active_key(form_type):
+    return f"{R2_PROJECT_FOLDER}/forms/{form_type}/active.txt"
+
+def _form_version_key(form_type, version_name):
+    return f"{R2_PROJECT_FOLDER}/forms/{form_type}/v_{version_name}.json"
+
+def get_active_form_version(form_type):
+    """Return the active version name, or None."""
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=_form_active_key(form_type))
+        return obj["Body"].read().decode("utf-8").strip() or None
+    except Exception:
+        return None
+
+def set_active_form_version(form_type, version_name):
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=_form_active_key(form_type),
+        Body=version_name.encode("utf-8"), ContentType="text/plain",
+    )
+    logger.info("Set active form version: %s -> %s", form_type, version_name)
+
+def clear_active_form_version(form_type):
+    try:
+        _client().delete_object(Bucket=R2_BUCKET_NAME, Key=_form_active_key(form_type))
+    except Exception:
+        pass
+    logger.info("Cleared active form version: %s", form_type)
+
+def list_form_versions(form_type):
+    """Return list of version names (without v_ prefix) sorted alphabetically."""
+    prefix = f"{R2_PROJECT_FOLDER}/forms/{form_type}/"
+    versions = []
+    for key in _list_keys(prefix):
+        fname = key.split("/")[-1]
+        if fname.startswith("v_") and fname.endswith(".json"):
+            versions.append(fname[2:-5])
+    return sorted(versions)
+
+def load_form_version(form_type, version_name):
+    import json
+    key = _form_version_key(form_type, version_name)
+    try:
+        obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        return None
+
+def save_form_version(form_type, version_name, config):
+    import json
+    key = _form_version_key(form_type, version_name)
+    _client().put_object(
+        Bucket=R2_BUCKET_NAME, Key=key,
+        Body=json.dumps(config, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    logger.info("Saved form version: %s/%s", form_type, version_name)
+
+def delete_form_version(form_type, version_name):
+    key = _form_version_key(form_type, version_name)
+    _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+    if get_active_form_version(form_type) == version_name:
+        clear_active_form_version(form_type)
+    logger.info("Deleted form version: %s/%s", form_type, version_name)
+
+# ---------------------------------------------------------------------------
 # Submissions — stored as JSON at fresh-universe/submissions/<type>/<uuid>.json
+# Version-aware: submissions go into v_<version>/ subfolder when version is active
 # ---------------------------------------------------------------------------
 def save_submission(form_type, data: dict):
     import json, uuid
@@ -425,7 +503,12 @@ def save_submission(form_type, data: dict):
     data["_id"] = sub_id
     data["_submitted_at"] = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     data["_form_type"] = form_type
-    key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/{sub_id}.json"
+    active = get_active_form_version(form_type)
+    if active:
+        data["_form_version"] = active
+        key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/v_{active}/{sub_id}.json"
+    else:
+        key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/{sub_id}.json"
     _client().put_object(
         Bucket=R2_BUCKET_NAME, Key=key,
         Body=json.dumps(data, indent=2).encode("utf-8"),
@@ -434,23 +517,32 @@ def save_submission(form_type, data: dict):
     logger.info("Saved submission: %s", key)
     return sub_id
 
-def load_submissions(form_type):
+def load_submissions(form_type, version_name=None):
+    """Load submissions for a form type, optionally filtered to a specific version."""
     import json
-    prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
+    if version_name:
+        prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/v_{version_name}/"
+    else:
+        prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
     results = []
     for key in _list_keys(prefix):
-        try:
-            obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
-            results.append(json.loads(obj["Body"].read().decode("utf-8")))
-        except Exception as e:
-            logger.error("Failed to load submission %s: %s", key, e)
+        if key.endswith(".json"):
+            try:
+                obj = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+                results.append(json.loads(obj["Body"].read().decode("utf-8")))
+            except Exception as e:
+                logger.error("Failed to load submission %s: %s", key, e)
     results.sort(key=lambda x: x.get("_submitted_at", ""), reverse=True)
     return results
 
 def delete_submission(form_type, sub_id):
-    key = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/{sub_id}.json"
-    _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
-    logger.info("Deleted submission: %s", key)
+    prefix = f"{R2_PROJECT_FOLDER}/submissions/{form_type}/"
+    for key in _list_keys(prefix):
+        if key.endswith(f"/{sub_id}.json"):
+            _client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+            logger.info("Deleted submission: %s", key)
+            return
+    logger.warning("Submission not found for deletion: %s/%s", form_type, sub_id)
 
 # Uploaded submission files stored at fresh-universe/submission-files/<filename>
 def upload_submission_file(filename, data: bytes, content_type: str = "application/octet-stream") -> str:

@@ -335,10 +335,31 @@
     <div class="nav-links">
       <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
       <a href="{{ url_for('interviews') }}" {% if 'interview' in request.endpoint %}class="active"{% endif %}>Interviews</a>
-      <a href="{{ url_for('blog') }}" {% if 'blog' in request.endpoint %}class="active"{% endif %}>Blog</a>
-      <a href="{{ url_for('issues') }}" {% if 'issue' in request.endpoint %}class="active"{% endif %}>Issues</a>
+      <div class="nav-dropdown">
+        <a href="{{ url_for('blog') }}" {% if 'blog' in request.endpoint %}class="active"{% endif %}>Blog ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="{{ url_for('blog') }}">Posts</a>
+          <a href="{{ url_for('form_landing', form_type='blog_submission') }}">Form</a>
+          <a href="{{ url_for('submissions_list', form_type='blog_submission') }}">Submissions</a>
+        </div>
+      </div>
+      <div class="nav-dropdown">
+        <a href="{{ url_for('issues') }}" {% if 'issue' in request.endpoint %}class="active"{% endif %}>Issues ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="{{ url_for('issues') }}">All Issues</a>
+          <a href="{{ url_for('form_landing', form_type='issue_submission') }}">Form</a>
+          <a href="{{ url_for('submissions_list', form_type='issue_submission') }}">Submissions</a>
+        </div>
+      </div>
       <a href="{{ url_for('masthead') }}" {% if 'masthead' in request.endpoint %}class="active"{% endif %}>Masthead</a>
-      <a href="{{ url_for('staff_applications') }}" {% if request.endpoint == 'staff_applications' %}class="active"{% endif %}>Staff Apps</a>
+      <div class="nav-dropdown">
+        <a href="{{ url_for('staff_applications') }}" {% if request.endpoint == 'staff_applications' or 'form_builder' in request.endpoint and request.view_args.get('form_type') == 'staff_application' or 'submissions' in request.endpoint and request.view_args.get('form_type') == 'staff_application' %}class="active"{% endif %}>Staff Apps ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="{{ url_for('staff_applications') }}">Settings</a>
+          <a href="{{ url_for('form_landing', form_type='staff_application') }}">Form</a>
+          <a href="{{ url_for('submissions_list', form_type='staff_application') }}">Submissions</a>
+        </div>
+      </div>
       <div class="nav-dropdown">
         <a href="#" {% if 'page_' in request.endpoint %}class="active"{% endif %}>Pages ▾</a>
         <div class="nav-dropdown-menu">
@@ -347,18 +368,6 @@
           <a href="{{ url_for('page_blog') }}">Blog header</a>
           <a href="{{ url_for('page_interviews') }}">Interviews header</a>
           <a href="{{ url_for('page_submissions') }}">Submissions</a>
-        </div>
-      </div>
-      <div class="nav-dropdown">
-        <a href="#" {% if 'form_builder' in request.endpoint or 'submissions' in request.endpoint %}class="active"{% endif %}>Forms ▾</a>
-        <div class="nav-dropdown-menu">
-          <a href="{{ url_for('form_builder', form_type='issue_submission') }}">Issue Submission</a>
-          <a href="{{ url_for('form_builder', form_type='blog_submission') }}">Blog Submission</a>
-          <a href="{{ url_for('form_builder', form_type='staff_application') }}">Staff Application</a>
-          <hr style="border:none;border-top:1px solid var(--gray-4);margin:4px 0;">
-          <a href="{{ url_for('submissions_list', form_type='issue_submission') }}">Issue Submissions</a>
-          <a href="{{ url_for('submissions_list', form_type='blog_submission') }}">Blog Submissions</a>
-          <a href="{{ url_for('submissions_list', form_type='staff_application') }}">Staff Applications</a>
         </div>
       </div>
       <a href="{{ url_for('site_settings') }}" {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>

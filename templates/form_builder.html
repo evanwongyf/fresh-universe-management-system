@@ -85,9 +85,22 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>{{ label }}</h1>
-  <div style="display:flex;gap:8px;">
-    <a href="{{ url_for('submissions_list', form_type=form_type) }}" class="btn btn-secondary">View submissions</a>
+  <div style="display:flex;align-items:center;gap:12px;">
+    {% if back_url %}
+    <a href="{{ back_url }}" style="color:var(--gray-3);text-decoration:none;font-size:18px;line-height:1;" title="Back">←</a>
+    {% endif %}
+    <h1>{{ label }}</h1>
+    {% if editing_version and editing_version == active_version %}
+    <span style="font-size:11px;font-weight:600;background:#e6f4ec;color:var(--green);padding:3px 9px;border-radius:100px;">● Active</span>
+    {% endif %}
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if editing_version %}
+    <a href="{{ url_for('submissions_version', form_type=form_type, version_name=editing_version) }}" class="btn btn-secondary">Submissions</a>
+    {% else %}
+    <a href="{{ url_for('form_landing', form_type=form_type) }}" class="btn btn-secondary">Versions{% if versions %} ({{ versions | length }}){% endif %}</a>
+    <a href="{{ url_for('submissions_list', form_type=form_type) }}" class="btn btn-secondary">Submissions</a>
+    {% endif %}
   </div>
 </div>
 
