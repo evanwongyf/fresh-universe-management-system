@@ -66,39 +66,115 @@
       background: rgba(255,255,255,0.15);
       color: var(--white);
     }
-    .nav-user {
-      color: rgba(255,255,255,0.6);
-      font-size: 12px;
-      margin-right: 4px;
+
+    /* ── Profile dropdown ── */
+    .nav-profile { position: relative; display: flex; align-items: center; margin-left: 4px; }
+    .nav-profile-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      cursor: pointer;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
     }
-    .nav-dropdown { position: relative; }
-    .nav-dropdown-menu {
+    .nav-profile-btn:hover { background: rgba(255,255,255,0.28); }
+    .nav-profile-menu {
       display: none;
       position: absolute;
-      top: calc(100% + 8px);
-      left: 0;
+      top: calc(100% + 10px);
+      right: 0;
       background: var(--white);
       border: 1px solid var(--gray-4);
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      min-width: 180px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+      min-width: 200px;
       z-index: 200;
       overflow: hidden;
     }
-    .nav-dropdown:hover .nav-dropdown-menu { display: block; }
-    .nav-dropdown-menu a {
+    .nav-profile-menu.open { display: block; }
+    .nav-profile-info {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--gray-4);
+    }
+    .nav-profile-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-1);
+    }
+    .nav-profile-sub {
+      font-size: 11px;
+      color: var(--gray-3);
+      margin-top: 2px;
+    }
+    .nav-profile-menu a {
       display: block;
       padding: 10px 16px;
       font-size: 13px;
       font-weight: 500;
-      color: var(--gray-1);
+      color: var(--red);
       text-decoration: none;
-      border-radius: 0;
-      background: none;
+      transition: background 0.15s;
     }
-    .nav-dropdown-menu a:hover { background: var(--off-white); color: var(--blue); }
+    .nav-profile-menu a:hover { background: #fde8e8; }
 
-    /* ── Layout ── */
+    /* ── Page wrap with sidebar ── */
+    .page-wrap {
+      display: flex;
+      min-height: calc(100vh - 56px);
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 210px;
+      flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--gray-4);
+      padding: 20px 0 40px;
+      position: sticky;
+      top: 56px;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+    }
+    .sidebar-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--gray-3);
+      padding: 0 18px;
+      margin: 20px 0 6px;
+    }
+    .sidebar-label:first-child { margin-top: 4px; }
+    .sidebar a {
+      display: block;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gray-2);
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .sidebar a:hover {
+      background: var(--off-white);
+      color: var(--gray-1);
+    }
+    .sidebar a.active {
+      background: #e8effa;
+      color: var(--blue);
+      border-left-color: var(--blue);
+      font-weight: 600;
+    }
+
+    /* ── Main content ── */
+    .main-content { flex: 1; min-width: 0; }
+
+    /* ── Container ── */
     .container {
       max-width: 960px;
       margin: 0 auto;
@@ -330,54 +406,133 @@
 </head>
 <body>
   {% if session.user %}
+
+  {# ── Determine active section for sidebar ── #}
+  {% set _ft = request.view_args.get('form_type', '') %}
+  {% set in_blog     = request.endpoint in ('blog', 'blog_new', 'blog_edit', 'blog_delete', 'blog_source')
+                       or (_ft == 'blog_submission') %}
+  {% set in_issues   = request.endpoint in ('issues', 'issue_new', 'issue_edit', 'issue_delete', 'issue_source')
+                       or (_ft == 'issue_submission') %}
+  {% set in_staff    = request.endpoint == 'staff_applications'
+                       or (_ft == 'staff_application') %}
+  {% set in_masthead = request.endpoint in ('masthead', 'masthead_new', 'masthead_edit', 'masthead_delete') %}
+  {% set in_pages    = request.endpoint in ('page_home', 'page_about', 'page_blog', 'page_interviews', 'page_submissions', 'site_settings') %}
+  {% set has_sidebar = in_blog or in_issues or in_staff or in_masthead or in_pages %}
+
   <nav>
     <a class="nav-brand" href="{{ url_for('dashboard') }}">✦ Fresh Universe CMS</a>
     <div class="nav-links">
-      <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
-      <a href="{{ url_for('interviews') }}" {% if 'interview' in request.endpoint %}class="active"{% endif %}>Interviews</a>
-      <div class="nav-dropdown">
-        <a href="{{ url_for('blog') }}" {% if 'blog' in request.endpoint %}class="active"{% endif %}>Blog ▾</a>
-        <div class="nav-dropdown-menu">
-          <a href="{{ url_for('blog') }}">Posts</a>
-          <a href="{{ url_for('form_landing', form_type='blog_submission') }}">Form</a>
-          <a href="{{ url_for('submissions_list', form_type='blog_submission') }}">Submissions</a>
+      <a href="{{ url_for('dashboard') }}"        {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+      <a href="{{ url_for('interviews') }}"        {% if 'interview' in request.endpoint %}class="active"{% endif %}>Interviews</a>
+      <a href="{{ url_for('blog') }}"               {% if in_blog %}class="active"{% endif %}>Blog</a>
+      <a href="{{ url_for('issues') }}"             {% if in_issues %}class="active"{% endif %}>Issues</a>
+      <a href="{{ url_for('masthead') }}"           {% if in_masthead %}class="active"{% endif %}>Masthead</a>
+      <a href="{{ url_for('staff_applications') }}" {% if in_staff %}class="active"{% endif %}>Staff Apps</a>
+      <a href="{{ url_for('page_home') }}"          {% if in_pages %}class="active"{% endif %}>Pages</a>
+
+      <!-- Profile icon + dropdown -->
+      <div class="nav-profile">
+        <button class="nav-profile-btn" id="profileBtn" onclick="toggleProfile()" aria-label="Account">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+        </button>
+        <div class="nav-profile-menu" id="profileMenu">
+          <div class="nav-profile-info">
+            <div class="nav-profile-name">{{ session.user }}</div>
+            <div class="nav-profile-sub">Administrator</div>
+          </div>
+          <a href="{{ url_for('logout') }}">Log out</a>
         </div>
       </div>
-      <div class="nav-dropdown">
-        <a href="{{ url_for('issues') }}" {% if 'issue' in request.endpoint %}class="active"{% endif %}>Issues ▾</a>
-        <div class="nav-dropdown-menu">
-          <a href="{{ url_for('issues') }}">All Issues</a>
-          <a href="{{ url_for('form_landing', form_type='issue_submission') }}">Form</a>
-          <a href="{{ url_for('submissions_list', form_type='issue_submission') }}">Submissions</a>
-        </div>
-      </div>
-      <a href="{{ url_for('masthead') }}" {% if 'masthead' in request.endpoint %}class="active"{% endif %}>Masthead</a>
-      <div class="nav-dropdown">
-        <a href="{{ url_for('staff_applications') }}" {% if request.endpoint == 'staff_applications' or 'form_builder' in request.endpoint and request.view_args.get('form_type') == 'staff_application' or 'submissions' in request.endpoint and request.view_args.get('form_type') == 'staff_application' %}class="active"{% endif %}>Staff Apps ▾</a>
-        <div class="nav-dropdown-menu">
-          <a href="{{ url_for('staff_applications') }}">Settings</a>
-          <a href="{{ url_for('form_landing', form_type='staff_application') }}">Form</a>
-          <a href="{{ url_for('submissions_list', form_type='staff_application') }}">Submissions</a>
-        </div>
-      </div>
-      <div class="nav-dropdown">
-        <a href="#" {% if 'page_' in request.endpoint %}class="active"{% endif %}>Pages ▾</a>
-        <div class="nav-dropdown-menu">
-          <a href="{{ url_for('page_home') }}">Home</a>
-          <a href="{{ url_for('page_about') }}">About Us</a>
-          <a href="{{ url_for('page_blog') }}">Blog header</a>
-          <a href="{{ url_for('page_interviews') }}">Interviews header</a>
-          <a href="{{ url_for('page_submissions') }}">Submissions</a>
-        </div>
-      </div>
-      <a href="{{ url_for('site_settings') }}" {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>
-      <span class="nav-user">{{ session.user }}</span>
-      <a href="{{ url_for('logout') }}">Log out</a>
     </div>
   </nav>
-  {% endif %}
 
-  <div {% if not session.user %}class="auth-wrap"{% else %}class="container"{% endif %}>
+  <div class="page-wrap">
+
+    {% if has_sidebar %}
+    <aside class="sidebar">
+
+      {% if in_blog %}
+      <span class="sidebar-label">Blog</span>
+      <a href="{{ url_for('blog') }}"
+         {% if request.endpoint in ('blog', 'blog_new', 'blog_edit', 'blog_source') %}class="active"{% endif %}>Posts</a>
+      <a href="{{ url_for('form_landing', form_type='blog_submission') }}"
+         {% if _ft == 'blog_submission' and request.endpoint in ('form_landing', 'form_builder', 'form_versions', 'form_version_edit') %}class="active"{% endif %}>Form</a>
+      <a href="{{ url_for('submissions_list', form_type='blog_submission') }}"
+         {% if _ft == 'blog_submission' and request.endpoint in ('submissions_list', 'submissions_version', 'submission_delete') %}class="active"{% endif %}>Submissions</a>
+      {% endif %}
+
+      {% if in_issues %}
+      <span class="sidebar-label">Issues</span>
+      <a href="{{ url_for('issues') }}"
+         {% if request.endpoint in ('issues', 'issue_new', 'issue_edit', 'issue_source') %}class="active"{% endif %}>All Issues</a>
+      <a href="{{ url_for('form_landing', form_type='issue_submission') }}"
+         {% if _ft == 'issue_submission' and request.endpoint in ('form_landing', 'form_builder', 'form_versions', 'form_version_edit') %}class="active"{% endif %}>Form</a>
+      <a href="{{ url_for('submissions_list', form_type='issue_submission') }}"
+         {% if _ft == 'issue_submission' and request.endpoint in ('submissions_list', 'submissions_version', 'submission_delete') %}class="active"{% endif %}>Submissions</a>
+      {% endif %}
+
+      {% if in_staff %}
+      <span class="sidebar-label">Staff Apps</span>
+      <a href="{{ url_for('staff_applications') }}"
+         {% if request.endpoint == 'staff_applications' %}class="active"{% endif %}>Settings</a>
+      <a href="{{ url_for('form_landing', form_type='staff_application') }}"
+         {% if _ft == 'staff_application' and request.endpoint in ('form_landing', 'form_builder', 'form_versions', 'form_version_edit') %}class="active"{% endif %}>Form</a>
+      <a href="{{ url_for('submissions_list', form_type='staff_application') }}"
+         {% if _ft == 'staff_application' and request.endpoint in ('submissions_list', 'submissions_version', 'submission_delete') %}class="active"{% endif %}>Submissions</a>
+      {% endif %}
+
+      {% if in_masthead %}
+      <span class="sidebar-label">Masthead</span>
+      <a href="{{ url_for('masthead') }}"
+         {% if request.endpoint in ('masthead',) %}class="active"{% endif %}>All Members</a>
+      <a href="{{ url_for('masthead_new') }}"
+         {% if request.endpoint in ('masthead_new', 'masthead_edit') %}class="active"{% endif %}>Add / Edit Member</a>
+      {% endif %}
+
+      {% if in_pages %}
+      <span class="sidebar-label">Pages</span>
+      <a href="{{ url_for('page_home') }}"
+         {% if request.endpoint == 'page_home' %}class="active"{% endif %}>Home</a>
+      <a href="{{ url_for('page_about') }}"
+         {% if request.endpoint == 'page_about' %}class="active"{% endif %}>About Us</a>
+      <a href="{{ url_for('page_blog') }}"
+         {% if request.endpoint == 'page_blog' %}class="active"{% endif %}>Blog header</a>
+      <a href="{{ url_for('page_interviews') }}"
+         {% if request.endpoint == 'page_interviews' %}class="active"{% endif %}>Interviews header</a>
+      <a href="{{ url_for('page_submissions') }}"
+         {% if request.endpoint == 'page_submissions' %}class="active"{% endif %}>Submissions</a>
+      <span class="sidebar-label">Site</span>
+      <a href="{{ url_for('site_settings') }}"
+         {% if request.endpoint == 'site_settings' %}class="active"{% endif %}>Settings</a>
+      {% endif %}
+
+    </aside>
+    {% endif %}
+
+    <div class="main-content">
+      <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flash-list">
+              {% for category, message in messages %}
+                <li class="flash {{ category }}">{{ message }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+
+  </div><!-- .page-wrap -->
+
+  {% else %}
+  {# Not logged in — centered auth layout #}
+  <div class="auth-wrap">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <ul class="flash-list">
@@ -387,8 +542,21 @@
         </ul>
       {% endif %}
     {% endwith %}
-
     {% block content %}{% endblock %}
   </div>
+  {% endif %}
+
+  <script>
+    function toggleProfile() {
+      document.getElementById('profileMenu').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      const btn  = document.getElementById('profileBtn');
+      const menu = document.getElementById('profileMenu');
+      if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.remove('open');
+      }
+    });
+  </script>
 </body>
 </html>
