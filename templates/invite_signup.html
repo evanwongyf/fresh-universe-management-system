@@ -1,42 +1,276 @@
-{% extends "base.html" %}
-{% block title %}Create Account — Fresh Universe CMS{% endblock title %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — Fresh Universe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-{% block content_auth %}
-<div class="auth-card">
-  <div class="auth-logo">
-    <span>Fresh Universe</span>
-    <h2>You've been invited</h2>
-    <p>Create your account to get started</p>
+    :root {
+      --blue:       #004aad;
+      --blue-dark:  #003a8c;
+      --white:      #ffffff;
+      --off-white:  #f5f7fa;
+      --gray-1:     #333333;
+      --gray-2:     #666666;
+      --gray-3:     #aaaaaa;
+      --gray-4:     #dddddd;
+      --red:        #c0392b;
+      --green:      #1a7a4a;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      color: var(--gray-1);
+      background: var(--white);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .logo-badge {
+      display: inline-block;
+      background: var(--blue);
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 4px;
+    }
+    .logo h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 14px;
+      color: var(--gray-1);
+    }
+    .logo p {
+      font-size: 13px;
+      color: var(--gray-2);
+      margin-top: 4px;
+    }
+
+    .flash-list { list-style: none; margin-bottom: 20px; }
+    .flash {
+      padding: 11px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .flash.error   { background: #fde8e8; color: var(--red);   border-left: 3px solid var(--red); }
+    .flash.success { background: #e6f4ec; color: var(--green); border-left: 3px solid var(--green); }
+
+    .form-group { margin-bottom: 18px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--gray-2);
+      margin-bottom: 6px;
+    }
+    .form-hint { font-size: 11px; color: var(--gray-3); margin-top: 4px; }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gray-4);
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: var(--gray-1);
+      background: var(--white);
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.1);
+    }
+    input.error {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+    }
+    input[readonly] {
+      background: var(--off-white);
+      color: var(--gray-2);
+      cursor: default;
+    }
+
+    .match-hint {
+      font-size: 11px;
+      margin-top: 4px;
+      min-height: 16px;
+      transition: color 0.15s;
+    }
+    .match-hint.ok  { color: var(--green); }
+    .match-hint.bad { color: var(--red); }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: var(--blue);
+      color: var(--white);
+      transition: background 0.15s, opacity 0.15s;
+      margin-top: 6px;
+    }
+    .btn:hover:not(:disabled) { background: var(--blue-dark, #003a8c); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--gray-2);
+    }
+    .footer a { color: var(--blue); text-decoration: none; font-weight: 500; }
+
+    hr { border: none; border-top: 1px solid var(--gray-4); margin: 24px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <div class="logo">
+      <span class="logo-badge">Fresh Universe</span>
+      <h1>You've been invited</h1>
+      <p>Create your account to get started</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" id="signupForm" novalidate>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="full_name">Full name</label>
+          <input type="text" id="full_name" name="full_name" autofocus
+                 placeholder="Jane Doe"
+                 value="{{ request.form.full_name or '' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="preferred_name">Preferred name</label>
+          <input type="text" id="preferred_name" name="preferred_name"
+                 placeholder="Jane (optional)"
+                 value="{{ request.form.preferred_name or '' }}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email"
+               value="{{ request.form.email or invite.email or '' }}"
+               {% if invite.email %}readonly{% endif %}
+               autocomplete="email">
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="new-password"
+               placeholder="At least 6 characters">
+      </div>
+
+      <div class="form-group">
+        <label for="confirm">Confirm password</label>
+        <input type="password" id="confirm" name="confirm" autocomplete="new-password"
+               placeholder="Repeat your password">
+        <p class="match-hint" id="matchHint"></p>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn" disabled>Create account</button>
+    </form>
+
+    <div class="footer">
+      Already have an account? <a href="{{ url_for('login') }}">Log in</a>
+    </div>
+
   </div>
 
-  <form method="POST">
-    <div class="form-group">
-      <label for="display_name">Display name</label>
-      <input type="text" id="display_name" name="display_name" autofocus
-             placeholder="Your name"
-             value="{{ request.form.display_name or '' }}">
-    </div>
-    <div class="form-group">
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email" autocomplete="email"
-             value="{{ request.form.email or invite.email or '' }}">
-    </div>
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" autocomplete="new-password">
-      <p class="form-hint">At least 6 characters</p>
-    </div>
-    <div class="form-group">
-      <label for="confirm">Confirm password</label>
-      <input type="password" id="confirm" name="confirm" autocomplete="new-password">
-    </div>
-    <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:11px;">
-      Create account
-    </button>
-  </form>
+  <script>
+    const passwordInput = document.getElementById('password');
+    const confirmInput  = document.getElementById('confirm');
+    const matchHint     = document.getElementById('matchHint');
+    const submitBtn     = document.getElementById('submitBtn');
 
-  <div class="auth-footer">
-    Already have an account? <a href="{{ url_for('login') }}">Log in</a>
-  </div>
-</div>
-{% endblock content_auth %}
+    function validate() {
+      const pw  = passwordInput.value;
+      const cfm = confirmInput.value;
+
+      // Reset states
+      confirmInput.classList.remove('error');
+      matchHint.className = 'match-hint';
+      matchHint.textContent = '';
+
+      if (!pw && !cfm) {
+        submitBtn.disabled = true;
+        return;
+      }
+
+      if (cfm.length === 0) {
+        submitBtn.disabled = true;
+        return;
+      }
+
+      if (pw !== cfm) {
+        confirmInput.classList.add('error');
+        matchHint.classList.add('bad');
+        matchHint.textContent = 'Passwords do not match';
+        submitBtn.disabled = true;
+      } else if (pw.length < 6) {
+        matchHint.classList.add('bad');
+        matchHint.textContent = 'Password must be at least 6 characters';
+        submitBtn.disabled = true;
+      } else {
+        matchHint.classList.add('ok');
+        matchHint.textContent = 'Passwords match';
+        submitBtn.disabled = false;
+      }
+    }
+
+    passwordInput.addEventListener('input', validate);
+    confirmInput.addEventListener('input', validate);
+  </script>
+</body>
+</html>

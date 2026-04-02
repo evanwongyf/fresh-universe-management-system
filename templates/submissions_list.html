@@ -7,7 +7,7 @@
     background: var(--white);
     border: 1px solid var(--gray-4);
     border-radius: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     overflow: hidden;
   }
   .sub-card-header {
@@ -20,35 +20,38 @@
     gap: 12px;
   }
   .sub-card-header:hover { background: var(--off-white); }
-  .sub-meta {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
+  .sub-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
   .sub-name { font-weight: 600; font-size: 14px; color: var(--gray-1); }
-  .sub-date { font-size: 12px; color: var(--gray-3); }
-  .sub-tag  { font-size: 11px; }
-  .sub-chevron { color: var(--gray-3); font-size: 13px; transition: transform 0.2s; flex-shrink: 0; }
+  .sub-date { font-size: 12px; color: var(--gray-3); white-space: nowrap; }
+  .sub-chevron { color: var(--gray-3); font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
   .sub-chevron.open { transform: rotate(90deg); }
   .sub-body {
     display: none;
-    padding: 0 20px 20px;
     border-top: 1px solid var(--gray-4);
   }
   .sub-body.open { display: block; }
-  .sub-fields { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
-  .sub-field { }
-  .sub-field .sf-label { font-size: 11px; font-weight: 600; color: var(--gray-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+
+  /* Two-column layout inside expanded card */
+  .sub-body-inner {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+  }
+  .sub-fields-col {
+    padding: 20px 24px;
+    border-right: 1px solid var(--gray-4);
+  }
+  .sub-assign-col {
+    padding: 20px 24px;
+    background: var(--off-white);
+  }
+  .sub-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+  .sub-field .sf-label { font-size: 10px; font-weight: 700; color: var(--gray-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
   .sub-field .sf-value { font-size: 13px; color: var(--gray-1); line-height: 1.5; word-break: break-word; white-space: pre-wrap; }
   .sub-field.full { grid-column: 1 / -1; }
-  .sub-actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
   .file-link { font-size: 13px; color: var(--blue); text-decoration: none; }
   .file-link:hover { text-decoration: underline; }
-  .empty-state { text-align: center; padding: 64px 20px; color: var(--gray-3); }
-  .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
-  .filter-bar input { flex: 1; min-width: 200px; }
-  .count-badge { font-size: 13px; color: var(--gray-2); }
+
   .status-badge {
     display: inline-block;
     padding: 2px 8px;
@@ -57,29 +60,127 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    white-space: nowrap;
   }
   .status-unassigned { background:#f0f0f0; color:var(--gray-2); }
   .status-pending    { background:#fff3cd; color:#856404; }
   .status-in_review  { background:#cce5ff; color:#004085; }
   .status-completed  { background:#d4edda; color:#155724; }
-  .assign-modal-overlay {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
+
+  .version-chip {
+    display: inline-flex; align-items: center;
+    background: #f0f4ff; color: var(--blue);
+    border: 1px solid #c8d8f8;
+    border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    white-space: nowrap;
   }
-  .assign-modal-overlay.open { display: flex; }
-  .assign-modal {
-    background: var(--white);
-    border-radius: 12px;
-    padding: 28px;
-    width: 100%;
-    max-width: 380px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+
+  /* Assign panel */
+  .assign-section-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--gray-2); margin-bottom: 10px;
   }
-  .assign-modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 18px; }
+  .assign-current {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--white); border: 1px solid var(--gray-4);
+    border-radius: 6px; padding: 8px 12px;
+    font-size: 12px; font-weight: 500; color: var(--gray-1);
+    margin-bottom: 14px;
+  }
+  .assign-current .avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--blue); color: var(--white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .assign-form select {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--gray-4); border-radius: 6px;
+    font-family: 'Inter', sans-serif; font-size: 13px; color: var(--gray-1);
+    background: var(--white); outline: none; margin-bottom: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .assign-form select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,74,173,0.1); }
+  .assign-form .deadline-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  }
+  .assign-form .deadline-row input {
+    width: 70px; padding: 7px 10px;
+    border: 1px solid var(--gray-4); border-radius: 6px;
+    font-family: 'Inter', sans-serif; font-size: 13px; color: var(--gray-1);
+    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .assign-form .deadline-row input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,74,173,0.1); }
+  .assign-form .deadline-row span { font-size: 12px; color: var(--gray-2); }
+
+  /* File action buttons */
+  .file-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .file-btn-expand, .file-btn-tab {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 500;
+    cursor: pointer; text-decoration: none; transition: background 0.15s, border-color 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .file-btn-expand {
+    background: #e8effa; color: var(--blue);
+    border: 1px solid #c8d8f8;
+  }
+  .file-btn-expand:hover { background: #d0e2f7; }
+  .file-btn-tab {
+    background: var(--white); color: var(--gray-2);
+    border: 1px solid var(--gray-4);
+  }
+  .file-btn-tab:hover { background: var(--off-white); color: var(--gray-1); }
+
+  /* File viewer overlay */
+  .viewer-overlay {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0,0,0,0.75);
+    flex-direction: column;
+  }
+  .viewer-overlay.open { display: flex; }
+  .viewer-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    background: #111; color: #fff;
+    flex-shrink: 0;
+  }
+  .viewer-bar-left { display: flex; align-items: center; gap: 12px; }
+  .viewer-bar span { font-size: 12px; color: #aaa; font-family: 'Inter', sans-serif; }
+  .viewer-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 5px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: none; font-family: 'Inter', sans-serif;
+    text-decoration: none; transition: background 0.15s;
+  }
+  .viewer-btn-close { background: #333; color: #fff; }
+  .viewer-btn-close:hover { background: #555; }
+  .viewer-btn-newtab { background: var(--blue); color: #fff; }
+  .viewer-btn-newtab:hover { background: var(--blue-dark, #003a8c); }
+  .viewer-frame-wrap {
+    flex: 1; overflow: hidden; background: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .viewer-frame-wrap iframe {
+    width: 100%; height: 100%; border: none; background: #fff;
+  }
+  .viewer-frame-wrap .viewer-fallback {
+    text-align: center; color: #aaa; font-family: 'Inter', sans-serif;
+  }
+  .viewer-fallback p { font-size: 14px; margin-bottom: 14px; }
+
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .filter-bar input { flex: 1; min-width: 200px; }
+  .count-badge { font-size: 13px; color: var(--gray-2); white-space: nowrap; }
+  .empty-state { text-align: center; padding: 64px 20px; color: var(--gray-3); }
+
+  @media (max-width: 860px) {
+    .sub-body-inner { grid-template-columns: 1fr; }
+    .sub-fields-col { border-right: none; border-bottom: 1px solid var(--gray-4); }
+  }
 </style>
 {% endblock %}
 
@@ -89,7 +190,10 @@
     {% if back_url %}
     <a href="{{ back_url }}" style="color:var(--gray-3);text-decoration:none;font-size:18px;line-height:1;" title="Back">←</a>
     {% endif %}
-    <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">Submissions{% if version_filter %} — {{ version_filter }}{% endif %}</span></h1>
+    <div>
+      <h1>{{ label }} <span style="font-size:16px;font-weight:400;color:var(--gray-2);">Submissions</span></h1>
+      {% if version_filter %}<div style="font-size:12px;color:var(--blue);margin-top:2px;">Version: {{ version_filter }}</div>{% endif %}
+    </div>
   </div>
   <div style="display:flex;gap:8px;align-items:center;">
     {% if editing_version %}
@@ -103,94 +207,154 @@
 {% if submissions %}
 <div class="filter-bar">
   <input type="text" id="search" placeholder="Search by name, email…" oninput="filterSubs(this.value)">
-  <span class="count-badge" id="count-label">{{ submissions | length }} submission{{ 's' if submissions | length != 1 }}</span>
+  <span class="count-badge" id="count-label">{{ submissions|length }} submission{{ 's' if submissions|length != 1 }}</span>
 </div>
 
 <div id="subs-list">
   {% for sub in submissions %}
-  {% set name_val = sub.get('name') or sub.get('full_name') or '(no name)' %}
+  {% set assigned_editor = all_editors | selectattr('id','equalto', sub._assigned_to) | first if sub._assigned_to else None %}
+  {% set name_val  = sub.get('name') or sub.get('full_name') or '(no name)' %}
   {% set email_val = sub.get('email') or '' %}
-  {% set cat_val = sub.get('category') or sub.get('role') or '' %}
+  {% set cat_val   = sub.get('category') or sub.get('role') or '' %}
+  {% set ver       = sub.get('_form_version') %}
+
   <div class="sub-card" data-search="{{ (name_val ~ ' ' ~ email_val ~ ' ' ~ cat_val) | lower }}">
-    <div class="sub-card-header" onclick="toggleSub(this)">
+
+    {# ── Header row ── #}
+    <div class="sub-card-header" onclick="toggleSub(this)" data-id="{{ sub._id }}">
       <div class="sub-meta">
         <span class="sub-name">{{ name_val }}</span>
         {% if email_val %}<span class="sub-date">{{ email_val }}</span>{% endif %}
-        {% if cat_val %}<span class="tag sub-tag">{{ cat_val }}</span>{% endif %}
+        {% if cat_val %}<span class="tag" style="font-size:11px;">{{ cat_val }}</span>{% endif %}
+        {% if ver %}<span class="version-chip">{{ ver }}</span>{% endif %}
         {% if sub._submitted_at %}<span class="sub-date">{{ sub._submitted_at[:10] }}</span>{% endif %}
-        <span class="status-badge status-{{ sub._editorial_status or 'unassigned' }}">{{ (sub._editorial_status or 'unassigned').replace('_',' ') }}</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation()">
-        {% if session.user_role in ('admin','editor_in_chief') %}
-        <button class="btn btn-secondary btn-sm"
-                onclick="openAssign('{{ sub._id }}', '{{ sub._form_type or form_type }}', '{{ name_val | replace("'","") }}')">
-          Assign
-        </button>
-        {% endif %}
-        {% if sub._editorial_status in ('pending','in_review','completed') %}
-        <a href="{{ url_for('editor_view', form_type=sub._form_type or form_type, sub_id=sub._id) }}"
-           class="btn btn-primary btn-sm">Edit</a>
+        <span class="status-badge status-{{ sub._editorial_status or 'unassigned' }}">
+          {{ (sub._editorial_status or 'unassigned').replace('_',' ') }}
+        </span>
+        {% if assigned_editor %}
+        <span class="sub-date" style="color:var(--gray-2);">→ {{ assigned_editor.display_name }}</span>
         {% endif %}
       </div>
       <span class="sub-chevron">▶</span>
     </div>
-    <div class="sub-body">
-      <div class="sub-fields">
-        {% for field in config.fields %}
-          {% if field.type == 'piece_count_selector' %}
-          {% set count = sub.get(field.id ~ '_count', '1') | int %}
-          {% for n in range(1, count + 1) %}
-          {% set pname = sub.get(field.id ~ '_' ~ n ~ '_name', '') %}
-          {% set pfile = sub.get(field.id ~ '_' ~ n ~ '_file', '') %}
-          {% if pname or pfile %}
-          <div class="sub-field">
-            <div class="sf-label">{{ field.label }} #{{ n }}</div>
-            <div class="sf-value">
-              {% if pname %}<div>{{ pname }}</div>{% endif %}
-              {% if pfile %}<a href="{{ pfile }}" target="_blank" class="file-link">📎 Download piece {{ n }}</a>{% endif %}
+
+    {# ── Expanded body ── #}
+    <div class="sub-body" id="body-{{ sub._id }}" onclick="event.stopPropagation()">
+      <div class="sub-body-inner">
+
+        {# Left: submission fields #}
+        <div class="sub-fields-col">
+          <div class="sub-fields">
+            {% for field in config.fields %}
+              {% if field.type == 'piece_count_selector' %}
+              {% set count = sub.get(field.id ~ '_count', '1') | int %}
+              {% for n in range(1, count + 1) %}
+              {% set pname = sub.get(field.id ~ '_' ~ n ~ '_name', '') %}
+              {% set pfile = sub.get(field.id ~ '_' ~ n ~ '_file', '') %}
+              {% if pname or pfile %}
+              <div class="sub-field">
+                <div class="sf-label">{{ field.label }} #{{ n }}</div>
+                <div class="sf-value">
+                  {% if pname %}<div style="margin-bottom:6px;">{{ pname }}</div>{% endif %}
+                  {% if pfile %}
+                  <div class="file-btns">
+                    <button type="button" class="file-btn-expand" onclick="openViewer('{{ pfile }}')">⤢ Expand</button>
+                    <a href="{{ pfile }}" target="_blank" class="file-btn-tab">↗ New tab</a>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
+              {% endfor %}
+              {% else %}
+              {% set val = sub.get(field.id, '') %}
+              {% if val %}
+              <div class="sub-field {% if field.type == 'textarea' or (val | string | length > 80) %}full{% endif %}">
+                <div class="sf-label">{{ field.label }}</div>
+                {% if field.type == 'file' %}
+                <div class="sf-value">
+                  <div class="file-btns">
+                    <button type="button" class="file-btn-expand" onclick="openViewer('{{ val }}')">⤢ Expand</button>
+                    <a href="{{ val }}" target="_blank" class="file-btn-tab">↗ New tab</a>
+                  </div>
+                </div>
+                {% elif field.type == 'checkbox' and val is iterable and val is not string %}
+                <div class="sf-value">{{ val | join(', ') }}</div>
+                {% else %}
+                <div class="sf-value">{{ val }}</div>
+                {% endif %}
+              </div>
+              {% endif %}
+              {% endif %}
+            {% endfor %}
+
+            <div class="sub-field">
+              <div class="sf-label">Submitted</div>
+              <div class="sf-value">{{ sub._submitted_at[:10] if sub._submitted_at else '—' }}</div>
+            </div>
+            {% if ver %}
+            <div class="sub-field">
+              <div class="sf-label">Form version</div>
+              <div class="sf-value"><span class="version-chip">{{ ver }}</span></div>
+            </div>
+            {% endif %}
+            <div class="sub-field full">
+              <div class="sf-label">ID</div>
+              <div class="sf-value" style="font-size:11px;color:var(--gray-3);">{{ sub._id }}</div>
             </div>
           </div>
-          {% endif %}
-          {% endfor %}
-          {% else %}
-          {% set val = sub.get(field.id, '') %}
-          {% if val %}
-          <div class="sub-field {% if field.type == 'textarea' or (val | string | length > 80) %}full{% endif %}">
-            <div class="sf-label">{{ field.label }}</div>
-            {% if field.type == 'file' and val %}
-            <div class="sf-value"><a href="{{ val }}" target="_blank" class="file-link">📎 Download / View file</a></div>
-            {% elif field.type == 'checkbox' and val is iterable and val is not string %}
-            <div class="sf-value">{{ val | join(', ') }}</div>
-            {% else %}
-            <div class="sf-value">{{ val }}</div>
-            {% endif %}
+
+          <div style="margin-top:16px;display:flex;gap:8px;align-items:center;">
+            <a href="{{ url_for('editor_view', form_type=sub._form_type or form_type, sub_id=sub._id) }}"
+               class="btn btn-primary btn-sm">Open in editor</a>
+            <form method="POST" action="{{ url_for('submission_delete', form_type=form_type, sub_id=sub._id) }}"
+                  onsubmit="return confirm('Delete this submission? This cannot be undone.')">
+              {% if version_filter %}<input type="hidden" name="version" value="{{ version_filter }}">{% endif %}
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
           </div>
-          {% endif %}
-          {% endif %}
-        {% endfor %}
-        <div class="sub-field">
-          <div class="sf-label">Submitted</div>
-          <div class="sf-value">{{ sub._submitted_at or '—' }}</div>
         </div>
-        {% if sub._form_version %}
-        <div class="sub-field">
-          <div class="sf-label">Form version</div>
-          <div class="sf-value" style="font-size:12px;color:var(--blue);">{{ sub._form_version }}</div>
-        </div>
-        {% endif %}
-        <div class="sub-field">
-          <div class="sf-label">ID</div>
-          <div class="sf-value" style="font-size:11px;color:var(--gray-3);">{{ sub._id }}</div>
-        </div>
-      </div>
-      <div class="sub-actions">
-        <form method="POST" action="{{ url_for('submission_delete', form_type=form_type, sub_id=sub._id) }}"
-              onsubmit="return confirm('Delete this submission? This cannot be undone.')">
-          {% if version_filter %}
-          <input type="hidden" name="version" value="{{ version_filter }}">
+
+        {# Right: assign panel #}
+        <div class="sub-assign-col">
+          <p class="assign-section-title">Editorial assignment</p>
+
+          {% if assigned_editor %}
+          <div class="assign-current">
+            <div class="avatar">{{ assigned_editor.display_name[0] | upper }}</div>
+            <div>
+              <div style="font-weight:600;">{{ assigned_editor.display_name }}</div>
+              <div style="font-size:11px;color:var(--gray-3);">
+                {% if sub._deadline_date %}Due {{ sub._deadline_date[:10] }}{% else %}No deadline{% endif %}
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <p style="font-size:12px;color:var(--gray-3);margin-bottom:14px;">Not yet assigned.</p>
           {% endif %}
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
+
+          {% if session.user_role in ('admin','editor_in_chief') %}
+          <form method="POST" action="{{ url_for('submission_assign', form_type=sub._form_type or form_type, sub_id=sub._id) }}"
+                class="assign-form">
+            <select name="editor_id">
+              <option value="">— Unassign —</option>
+              {% for ed in all_editors %}
+              <option value="{{ ed.id }}" {% if sub._assigned_to == ed.id %}selected{% endif %}>
+                {{ ed.display_name }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="deadline-row">
+              <input type="number" name="deadline_days" value="7" min="1" max="365">
+              <span>days deadline from today</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+              {{ 'Reassign' if assigned_editor else 'Assign' }}
+            </button>
+          </form>
+          {% endif %}
+        </div>
+
       </div>
     </div>
   </div>
@@ -200,45 +364,71 @@
 {% else %}
 <div class="empty-state">
   <p style="font-size:15px;">No submissions yet.</p>
-  <p style="font-size:13px;margin-top:8px;">Submissions will appear here once people fill out the form on the magazine site.</p>
+  <p style="font-size:13px;margin-top:8px;">Submissions will appear here once people fill out the form.</p>
 </div>
 {% endif %}
 
-<!-- Assign modal -->
-{% if session.user_role in ('admin','editor_in_chief') %}
-<div id="assignModal" class="assign-modal-overlay" onclick="if(event.target===this)closeAssign()">
-  <div class="assign-modal">
-    <h3>Assign submission</h3>
-    <form method="POST" id="assignForm">
-      <div class="form-group" style="margin-bottom:16px;">
-        <label style="font-size:12px;font-weight:600;color:var(--gray-2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;">Assign to editor</label>
-        <select name="editor_id" style="width:100%;">
-          <option value="">— Unassign —</option>
-          {% for ed in all_editors %}
-          <option value="{{ ed.id }}">{{ ed.display_name }} ({{ ed.role }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label style="font-size:12px;font-weight:600;color:var(--gray-2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;">Deadline (days from today)</label>
-        <input type="number" name="deadline_days" value="7" min="1" max="365" style="width:100%;">
-      </div>
-      <div style="display:flex;gap:10px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Assign</button>
-        <button type="button" onclick="closeAssign()" class="btn btn-secondary">Cancel</button>
-      </div>
-    </form>
+<!-- File viewer overlay -->
+<div class="viewer-overlay" id="fileViewer">
+  <div class="viewer-bar">
+    <div class="viewer-bar-left">
+      <span id="viewerLabel">File preview</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a id="viewerNewTab" href="#" target="_blank" class="viewer-btn viewer-btn-newtab">↗ New tab</a>
+      <button type="button" class="viewer-btn viewer-btn-close" onclick="closeViewer()">✕ Minimise</button>
+    </div>
+  </div>
+  <div class="viewer-frame-wrap" id="viewerFrameWrap">
+    <iframe id="viewerFrame" src="" allowfullscreen></iframe>
   </div>
 </div>
-{% endif %}
-{% endblock %}
 
-{% block scripts %}
 <script>
+  function openViewer(url) {
+    const overlay   = document.getElementById('fileViewer');
+    const frame     = document.getElementById('viewerFrame');
+    const newTabBtn = document.getElementById('viewerNewTab');
+    const label     = document.getElementById('viewerLabel');
+
+    // Derive a readable filename from the URL
+    try {
+      const parts = new URL(url).pathname.split('/');
+      label.textContent = decodeURIComponent(parts[parts.length - 1]) || 'File preview';
+    } catch(e) {
+      label.textContent = 'File preview';
+    }
+
+    newTabBtn.href = url;
+    frame.src = url;
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeViewer() {
+    const overlay = document.getElementById('fileViewer');
+    const frame   = document.getElementById('viewerFrame');
+    overlay.classList.remove('open');
+    frame.src = '';
+    document.body.style.overflow = '';
+  }
+
+  // Close on backdrop click (outside the bar)
+  document.getElementById('fileViewer').addEventListener('click', function(e) {
+    if (e.target === this) closeViewer();
+  });
+
+  // Esc key to close
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeViewer();
+  });
+
   function toggleSub(header) {
-    const body    = header.nextElementSibling;
+    const id      = header.dataset.id;
+    const body    = document.getElementById('body-' + id);
     const chevron = header.querySelector('.sub-chevron');
-    const open    = body.classList.toggle('open');
+    if (!body) return;
+    const open = body.classList.toggle('open');
     chevron.classList.toggle('open', open);
   }
 
@@ -253,18 +443,6 @@
     const label = document.getElementById('count-label');
     if (label) label.textContent = count + ' submission' + (count !== 1 ? 's' : '');
   }
-
-  function openAssign(subId, formType, name) {
-    const modal = document.getElementById('assignModal');
-    if (!modal) return;
-    modal.querySelector('h3').textContent = 'Assign: ' + name;
-    modal.querySelector('form').action = '/submissions/' + formType + '/' + subId + '/assign';
-    modal.classList.add('open');
-  }
-
-  function closeAssign() {
-    const modal = document.getElementById('assignModal');
-    if (modal) modal.classList.remove('open');
-  }
 </script>
+
 {% endblock %}

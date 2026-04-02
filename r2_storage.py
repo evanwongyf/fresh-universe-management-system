@@ -607,6 +607,15 @@ def upsert_user(user):
     users.append(user)
     save_users(users)
 
+def delete_user(user_id):
+    """Remove a user by id. Returns True if deleted, False if not found."""
+    users = load_users()
+    new_users = [u for u in users if u.get("id") != user_id]
+    if len(new_users) == len(users):
+        return False
+    save_users(new_users)
+    return True
+
 # ---------------------------------------------------------------------------
 # User groups — fresh-universe/site/user_groups.json
 # Each group: {id, name, permissions: [...]}

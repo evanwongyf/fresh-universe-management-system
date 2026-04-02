@@ -9,14 +9,82 @@
   {% endif %}
 </div>
 
+<style>
+  .user-table { width:100%; border-collapse:collapse; }
+  .user-row td { padding:14px 16px; font-size:13px; border-bottom:1px solid var(--gray-4); vertical-align:middle; }
+  .user-row:last-child td { border-bottom:none; }
+  .user-row:hover > td { background:var(--off-white); }
+
+  .expand-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    background:none; border:1px solid var(--gray-4);
+    border-radius:6px; padding:5px 10px;
+    font-size:12px; font-weight:500; color:var(--gray-2);
+    cursor:pointer; transition:background 0.15s, border-color 0.15s, color 0.15s;
+    white-space:nowrap;
+  }
+  .expand-btn:hover { background:var(--off-white); border-color:var(--gray-3); color:var(--gray-1); }
+  .expand-btn.open  { background:#e8effa; border-color:var(--blue); color:var(--blue); }
+  .expand-btn svg   { transition:transform 0.2s; }
+  .expand-btn.open svg { transform:rotate(180deg); }
+
+  .group-tag {
+    display:inline-flex; align-items:center; gap:4px;
+    background:#e8effa; color:var(--blue);
+    font-size:11px; font-weight:500;
+    padding:3px 10px; border-radius:100px;
+  }
+
+  /* Expandable panel row */
+  .panel-row { display:none; }
+  .panel-row.open { display:table-row; }
+  .panel-row td {
+    padding:0 !important;
+    border-bottom:1px solid var(--gray-4);
+    background:var(--off-white) !important;
+  }
+  .panel-inner {
+    padding:20px 24px;
+    border-top:1px solid var(--gray-4);
+  }
+  .panel-inner h4 {
+    font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--gray-2); margin-bottom:14px;
+  }
+
+  .groups-current { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .group-pill {
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--white); border:1px solid var(--gray-4);
+    border-radius:8px; padding:6px 12px;
+    font-size:12px; font-weight:500; color:var(--gray-1);
+  }
+  .group-pill .rm-btn {
+    background:none; border:none; cursor:pointer;
+    color:var(--gray-3); font-size:15px; line-height:1;
+    padding:0 2px; border-radius:3px;
+    transition:color 0.15s, background 0.15s;
+  }
+  .group-pill .rm-btn:hover { color:var(--red); background:#fde8e8; }
+
+  .group-select-row { display:flex; align-items:center; gap:10px; }
+  .group-select-row select {
+    flex:1; max-width:260px;
+    padding:8px 10px; border:1px solid var(--gray-4); border-radius:6px;
+    font-family:'Inter',sans-serif; font-size:13px; color:var(--gray-1);
+    background:var(--white); outline:none;
+    transition:border-color 0.15s, box-shadow 0.15s;
+  }
+  .group-select-row select:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,74,173,0.1); }
+</style>
+
 <!-- Registered users -->
 <p class="section-title" style="margin-bottom:12px;">Registered ({{ users|length }})</p>
 <div class="table-wrap" style="margin-bottom:32px;">
-  <table>
+  <table class="user-table">
     <thead>
       <tr>
         <th>Name / Email</th>
-        <th>Role</th>
         <th>Groups</th>
         <th>Joined</th>
         <th></th>
@@ -24,52 +92,108 @@
     </thead>
     <tbody>
       {% for u in users %}
-      <tr>
+      {% set user_group_ids = u.groups or [] %}
+      {% set user_groups = [] %}
+      {% for gid in user_group_ids %}{% if gid in groups_by_id %}{% set _ = user_groups.append(groups_by_id[gid]) %}{% endif %}{% endfor %}
+      {% set available = [] %}
+      {% for g in groups %}{% if g.id not in user_group_ids %}{% set _ = available.append(g) %}{% endif %}{% endfor %}
+
+      {# Main row #}
+      <tr class="user-row">
         <td>
           <div style="font-weight:500;">{{ u.display_name }}</div>
           <div style="font-size:11px;color:var(--gray-3);">{{ u.email }}</div>
-        </td>
-        <td>
-          {% if session.user_role == 'admin' %}
-          <form method="POST" action="{{ url_for('admin_set_role', user_id=u.id) }}" style="display:flex;gap:6px;align-items:center;">
-            <select name="role" style="padding:4px 8px;font-size:12px;">
-              {% for r in ['admin','editor_in_chief','editor','user'] %}
-              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r.replace('_',' ').title() }}</option>
-              {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
-          </form>
-          {% else %}
-          <span class="tag">{{ u.role.replace('_',' ').title() }}</span>
+          {% if u.role == 'admin' %}
+          <span class="tag" style="margin-top:4px;display:inline-block;">Admin</span>
           {% endif %}
         </td>
+
         <td>
-          {% if session.user_role == 'admin' %}
-          <form method="POST" action="{{ url_for('admin_set_user_groups', user_id=u.id) }}" style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
-            {% for g in groups %}
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
-              <input type="checkbox" name="groups" value="{{ g.id }}" {% if g.id in (u.groups or []) %}checked{% endif %}>
-              {{ g.name }}
-            </label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            {% for g in user_groups %}
+            <span class="group-tag">{{ g.name }}</span>
+            {% else %}
+            <span style="color:var(--gray-3);font-size:12px;">—</span>
             {% endfor %}
-            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
-          </form>
-          {% else %}
-          {% for gid in (u.groups or []) %}
-            {% set grp = groups | selectattr('id','equalto',gid) | first %}
-            {% if grp %}<span class="tag">{{ grp.name }}</span>{% endif %}
-          {% endfor %}
-          {% endif %}
+          </div>
         </td>
-        <td style="color:var(--gray-3);font-size:12px;">{{ u.created_at[:10] if u.created_at else '—' }}</td>
-        <td style="text-align:right;">
-          {% if u.id != session.user_id %}
-          <span style="color:var(--gray-3);font-size:11px;">{{ 'You' if u.id == session.user_id else '' }}</span>
+
+        <td style="color:var(--gray-3);font-size:12px;white-space:nowrap;">
+          {{ u.created_at[:10] if u.created_at else '—' }}
+        </td>
+
+        <td style="text-align:right;white-space:nowrap;">
+          {% if u.id == session.user_id %}
+          <span style="color:var(--gray-3);font-size:11px;">You</span>
+          {% elif session.user_role == 'admin' %}
+          <div style="display:inline-flex;align-items:center;gap:8px;">
+            <button type="button" class="expand-btn" id="btn-{{ u.id }}"
+                    onclick="togglePanel('{{ u.id }}')">
+              Edit groups
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="2,4 6,8 10,4"/>
+              </svg>
+            </button>
+            <form method="POST" action="{{ url_for('admin_delete_user', user_id=u.id) }}"
+                  onsubmit="return confirm('Delete {{ u.email }}? This cannot be undone.')">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </div>
           {% endif %}
         </td>
       </tr>
+
+      {# Expandable panel row #}
+      {% if session.user_role == 'admin' and u.id != session.user_id %}
+      <tr class="panel-row" id="panel-{{ u.id }}">
+        <td colspan="4">
+          <div class="panel-inner">
+            <h4>Group membership</h4>
+
+            <div class="groups-current" id="current-{{ u.id }}">
+              {% for g in user_groups %}
+              <span class="group-pill">
+                {{ g.name }}
+                <form method="POST" action="{{ url_for('admin_set_user_groups', user_id=u.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirmRemove({{ user_groups|length }})">
+                  {% for og in user_groups %}{% if og.id != g.id %}
+                  <input type="hidden" name="groups" value="{{ og.id }}">
+                  {% endif %}{% endfor %}
+                  <button type="submit" class="rm-btn" title="Remove">×</button>
+                </form>
+              </span>
+              {% else %}
+              <span style="color:var(--gray-3);font-size:12px;">No groups assigned.</span>
+              {% endfor %}
+            </div>
+
+            {% if available %}
+            <div class="group-select-row">
+              <form method="POST" action="{{ url_for('admin_set_user_groups', user_id=u.id) }}"
+                    style="display:flex;align-items:center;gap:10px;">
+                {% for og in user_groups %}
+                <input type="hidden" name="groups" value="{{ og.id }}">
+                {% endfor %}
+                <select name="groups">
+                  <option value="" disabled selected>Add a group…</option>
+                  {% for g in available %}
+                  <option value="{{ g.id }}">{{ g.name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">Add</button>
+              </form>
+            </div>
+            {% else %}
+            <p style="font-size:12px;color:var(--gray-3);margin-top:4px;">User is in all available groups.</p>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+
       {% else %}
-      <tr><td colspan="5" style="text-align:center;color:var(--gray-3);padding:40px;">No users yet.</td></tr>
+      <tr><td colspan="4" style="text-align:center;color:var(--gray-3);padding:40px;">No users yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -122,4 +246,28 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+  function togglePanel(userId) {
+    const panel = document.getElementById('panel-' + userId);
+    const btn   = document.getElementById('btn-' + userId);
+    const isOpen = panel.classList.contains('open');
+    // Close all panels first
+    document.querySelectorAll('.panel-row.open').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('.expand-btn.open').forEach(el => el.classList.remove('open'));
+    // Open this one if it wasn't already open
+    if (!isOpen) {
+      panel.classList.add('open');
+      btn.classList.add('open');
+    }
+  }
+
+  function confirmRemove(groupCount) {
+    if (groupCount <= 1) {
+      alert('A user must belong to at least one group.');
+      return false;
+    }
+    return true;
+  }
+</script>
 {% endblock %}

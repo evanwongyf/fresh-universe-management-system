@@ -437,7 +437,7 @@
       {% if _role in ('admin','editor_in_chief','editor') %}
       <a href="{{ url_for('editor_dashboard') }}"   {% if in_editor %}class="active"{% endif %}>Editorial</a>
       {% endif %}
-      {% if _role in ('admin','editor_in_chief') %}
+      {% if _role == 'admin' %}
       <a href="{{ url_for('admin_users') }}"         {% if in_admin %}class="active"{% endif %}>Staff</a>
       {% endif %}
 

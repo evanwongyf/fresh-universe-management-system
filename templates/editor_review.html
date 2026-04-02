@@ -46,8 +46,14 @@
 <div class="page-header">
   <div>
     <h1>{{ sub.title or sub.name or 'Submission' }}</h1>
-    <div style="font-size:12px;color:var(--gray-3);margin-top:4px;">
-      {{ sub._form_type }} · by {{ editor.display_name if editor else 'Unassigned' }}
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--gray-3);">
+        {{ sub._form_type.replace('_',' ').title() }}
+        · reviewed by {{ editor.display_name if editor else 'Unassigned' }}
+      </span>
+      {% if sub._form_version %}
+      <span style="display:inline-flex;align-items:center;background:#f0f4ff;color:var(--blue);border:1px solid #c8d8f8;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.04em;padding:2px 7px;">{{ sub._form_version }}</span>
+      {% endif %}
     </div>
   </div>
   <a href="{{ url_for('submissions_list', form_type=sub._form_type) }}" class="btn btn-secondary">← Submissions</a>

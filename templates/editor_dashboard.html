@@ -56,7 +56,12 @@
       {% set editor = all_editors | selectattr('id','equalto', s._assigned_to) | first if s._assigned_to else None %}
       <tr>
         <td style="font-weight:500;">{{ s.title or s.name or s._id[:8] }}</td>
-        <td><span class="tag">{{ s._form_type_label }}</span></td>
+        <td>
+          <span class="tag">{{ s._form_type_label }}</span>
+          {% if s._version_label and s._version_label != 'Current' %}
+          <span style="display:inline-flex;align-items:center;background:#f0f4ff;color:var(--blue);border:1px solid #c8d8f8;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.04em;padding:2px 7px;margin-left:4px;">{{ s._version_label }}</span>
+          {% endif %}
+        </td>
         <td><span class="status-badge status-{{ s._editorial_status or 'unassigned' }}">{{ (s._editorial_status or 'unassigned').replace('_',' ') }}</span></td>
         <td>
           {% if s._deadline_date %}
@@ -96,7 +101,12 @@
       {% for s in completed %}
       <tr>
         <td style="font-weight:500;">{{ s.title or s.name or s._id[:8] }}</td>
-        <td><span class="tag">{{ s._form_type_label }}</span></td>
+        <td>
+          <span class="tag">{{ s._form_type_label }}</span>
+          {% if s._version_label and s._version_label != 'Current' %}
+          <span style="display:inline-flex;align-items:center;background:#f0f4ff;color:var(--blue);border:1px solid #c8d8f8;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.04em;padding:2px 7px;margin-left:4px;">{{ s._version_label }}</span>
+          {% endif %}
+        </td>
         <td><span class="status-badge status-completed">Completed</span></td>
         <td style="text-align:right;">
           <a href="{{ url_for('editor_review', form_type=s._form_type, sub_id=s._id) }}" class="btn btn-secondary btn-sm">View feedback</a>

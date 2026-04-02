@@ -34,7 +34,7 @@ from r2_storage import (
     list_form_versions, load_form_version, save_form_version, delete_form_version,
     R2_PROJECT_FOLDER, R2_BUCKET_NAME, _client,
     # new helpers
-    load_users, save_users, get_user_by_id, get_user_by_email, upsert_user,
+    load_users, save_users, get_user_by_id, get_user_by_email, upsert_user, delete_user,
     load_user_groups, save_user_groups,
     load_invites, save_invites, get_invite_by_token,
     load_feedback, save_feedback,
@@ -152,6 +152,8 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
     _maybe_seed_admin()
     if request.method == "POST":
         email    = request.form.get("email", "").strip().lower()
@@ -165,17 +167,22 @@ def login():
 
 @app.route("/invite/<token>", methods=["GET", "POST"])
 def invite_signup(token):
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
     invite = get_invite_by_token(token)
     if not invite or invite.get("used") or invite.get("revoked"):
         flash("This invite link is invalid or has already been used.", "error")
         return redirect(url_for("login"))
     if request.method == "POST":
-        email    = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        confirm  = request.form.get("confirm", "")
-        display  = request.form.get("display_name", "").strip()
+        email          = request.form.get("email", "").strip().lower()
+        password       = request.form.get("password", "")
+        confirm        = request.form.get("confirm", "")
+        full_name      = request.form.get("full_name", "").strip()
+        preferred_name = request.form.get("preferred_name", "").strip()
         if not email or not password:
             flash("Email and password are required.", "error")
+        elif not full_name:
+            flash("Full name is required.", "error")
         elif get_user_by_email(email):
             flash("An account with that email already exists.", "error")
         elif password != confirm:
@@ -186,7 +193,9 @@ def invite_signup(token):
             new_user = {
                 "id": str(_uuid.uuid4()),
                 "email": email,
-                "display_name": display or email.split("@")[0],
+                "display_name": preferred_name or full_name,
+                "full_name": full_name,
+                "preferred_name": preferred_name,
                 "password_hash": _hash(password),
                 "role": "user",
                 "groups": [],
@@ -1156,12 +1165,14 @@ def upload_image():
 # Admin — User management
 # ---------------------------------------------------------------------------
 @app.route("/admin/users")
-@role_required("admin", "editor_in_chief")
+@role_required("admin")
 def admin_users():
     users   = load_users()
     invites = [i for i in load_invites() if not i.get("used") and not i.get("revoked")]
     groups  = load_user_groups()
-    return render_template("admin_users.html", users=users, pending_invites=invites, groups=groups)
+    groups_by_id = {g["id"]: g for g in groups}
+    return render_template("admin_users.html", users=users, pending_invites=invites,
+                           groups=groups, groups_by_id=groups_by_id)
 
 @app.route("/admin/users/<user_id>/role", methods=["POST"])
 @role_required("admin")
@@ -1186,9 +1197,27 @@ def admin_set_user_groups(user_id):
     if not user:
         flash("User not found.", "error")
         return redirect(url_for("admin_users"))
-    user["groups"] = request.form.getlist("groups")
+    new_groups = request.form.getlist("groups")
+    if not new_groups:
+        flash("A user must belong to at least one group.", "error")
+        return redirect(url_for("admin_users"))
+    user["groups"] = new_groups
     upsert_user(user)
     flash(f"Groups updated for {user['email']}.", "success")
+    return redirect(url_for("admin_users"))
+
+@app.route("/admin/users/<user_id>/delete", methods=["POST"])
+@role_required("admin")
+def admin_delete_user(user_id):
+    if user_id == session["user_id"]:
+        flash("You cannot delete your own account.", "error")
+        return redirect(url_for("admin_users"))
+    user = get_user_by_id(user_id)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_users"))
+    delete_user(user_id)
+    flash(f"User {user['email']} has been deleted.", "success")
     return redirect(url_for("admin_users"))
 
 @app.route("/admin/invites/new", methods=["POST"])
@@ -1314,6 +1343,8 @@ def editor_dashboard():
     for ft in ("blog_submission", "issue_submission", "staff_application"):
         for s in load_submissions(ft):
             s["_form_type_label"] = _FORM_LABELS.get(ft, ft)
+            ver = s.get("_form_version")
+            s["_version_label"] = ver if ver else "Current"
             all_subs.append(s)
     # Filter to current user's assignments (editors see only theirs; admin/EIC see all)
     if session["user_role"] == "editor":
@@ -1338,7 +1369,19 @@ def editor_dashboard():
     )
 
 def _get_editors():
-    return [u for u in load_users() if u.get("role") in ("editor", "editor_in_chief", "admin")]
+    """Return all users who can edit or be assigned submissions (role-based or group-based)."""
+    groups = load_user_groups()
+    result = []
+    for u in load_users():
+        role = u.get("role", "user")
+        if role in ("editor", "editor_in_chief", "admin"):
+            result.append(u)
+            continue
+        # Check group-based permissions
+        perms = _compute_permissions(u, groups)
+        if "can_edit_submissions" in perms or "can_assign_submissions" in perms:
+            result.append(u)
+    return result
 
 # ---------------------------------------------------------------------------
 # Editorial workflow — editor view (split: files + feedback form)
