@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Role Settings — Fresh Universe CMS{% endblock %}
+
+{% block head %}
+<style>
+  .role-block {
+    background: var(--off-white);
+    border: 1px solid var(--gray-4);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .role-block .role-num {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--gray-3); margin-bottom: 10px;
+  }
+  .role-remove {
+    position: absolute; top: 12px; right: 12px;
+    background: none; border: none; cursor: pointer;
+    color: var(--gray-3); font-size: 18px; line-height: 1;
+    padding: 2px 6px; border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .role-remove:hover { color: var(--red); background: #fde8e8; }
+  .hiring-toggle {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  }
+  .hiring-toggle label {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0;
+    color: var(--gray-2);
+  }
+  .hiring-switch {
+    position: relative; display: inline-block; width: 36px; height: 20px;
+  }
+  .hiring-switch input { opacity: 0; width: 0; height: 0; }
+  .hiring-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--gray-4); border-radius: 20px;
+    transition: background 0.2s;
+  }
+  .hiring-slider:before {
+    content: ""; position: absolute;
+    height: 14px; width: 14px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: transform 0.2s;
+  }
+  .hiring-switch input:checked + .hiring-slider { background: var(--green); }
+  .hiring-switch input:checked + .hiring-slider:before { transform: translateX(16px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Role settings</h1>
+</div>
+
+<form method="POST">
+  <input type="hidden" name="role_count" id="role_count" value="{{ config.roles | length }}">
+  <div class="form-card" style="margin-bottom:24px;">
+    <p class="section-title" style="margin-bottom:20px;">Available roles</p>
+    <div id="roles-list">
+      {% for role in config.roles %}
+      <div class="role-block" data-index="{{ loop.index0 }}">
+        <div class="role-num">Role {{ loop.index }}</div>
+        <button type="button" class="role-remove" onclick="removeRole(this)" title="Remove">×</button>
+        <div class="form-group">
+          <label>Role name</label>
+          <input type="text" name="role_name_{{ loop.index0 }}" value="{{ role.name or '' }}"
+                 placeholder="e.g. Literary Editors">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea name="role_desc_{{ loop.index0 }}" rows="3"
+                    placeholder="What does this role involve?">{{ role.description or '' }}</textarea>
+        </div>
+        <div class="hiring-toggle">
+          <label>
+            <span class="hiring-switch">
+              <input type="checkbox" name="role_hiring_{{ loop.index0 }}" value="1"
+                     {% if role.is_hiring %}checked{% endif %}>
+              <span class="hiring-slider"></span>
+            </span>
+            Currently hiring
+          </label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="addRole()">+ Add role</button>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </div>
+</form>
+
+<script>
+  let roleCount = document.querySelectorAll('.role-block').length;
+
+  function addRole() {
+    const list = document.getElementById('roles-list');
+    const idx  = roleCount;
+    const block = document.createElement('div');
+    block.className = 'role-block';
+    block.dataset.index = idx;
+    block.innerHTML = `
+      <div class="role-num">Role ${idx + 1}</div>
+      <button type="button" class="role-remove" onclick="removeRole(this)" title="Remove">×</button>
+      <div class="form-group">
+        <label>Role name</label>
+        <input type="text" name="role_name_${idx}" placeholder="e.g. Literary Editors">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea name="role_desc_${idx}" rows="3" placeholder="What does this role involve?"></textarea>
+      </div>
+      <div class="hiring-toggle">
+        <label>
+          <span class="hiring-switch">
+            <input type="checkbox" name="role_hiring_${idx}" value="1">
+            <span class="hiring-slider"></span>
+          </span>
+          Currently hiring
+        </label>
+      </div>`;
+    list.appendChild(block);
+    roleCount++;
+    block.querySelector('input[type="text"]').focus();
+    renumberRoles();
+  }
+
+  function removeRole(btn) {
+    btn.closest('.role-block').remove();
+    renumberRoles();
+  }
+
+  function renumberRoles() {
+    document.querySelectorAll('.role-block').forEach((block, i) => {
+      block.querySelector('.role-num').textContent = `Role ${i + 1}`;
+      block.querySelector('input[type="text"]').name = `role_name_${i}`;
+      block.querySelector('textarea').name           = `role_desc_${i}`;
+      const cb = block.querySelector('input[type="checkbox"]');
+      if (cb) cb.name = `role_hiring_${i}`;
+    });
+    roleCount = document.querySelectorAll('.role-block').length;
+    document.getElementById('role_count').value = roleCount;
+  }
+</script>
+{% endblock %}

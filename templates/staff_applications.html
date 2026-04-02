@@ -93,109 +93,15 @@
              placeholder="Staff Applications are currently open.">
     </div>
 
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:0;">
       <label for="description">Description</label>
       <textarea id="description" name="description" rows="4"
                 placeholder="We're looking for passionate individuals…">{{ config.description or '' }}</textarea>
     </div>
-
-    <div class="form-group" style="margin-bottom:0;">
-      <label for="apply_link">Apply link (Google Form URL)</label>
-      <input type="text" id="apply_link" name="apply_link" value="{{ config.apply_link or '' }}"
-             placeholder="https://forms.gle/…">
-    </div>
-  </div>
-
-  <!-- Roles -->
-  <input type="hidden" name="role_count" id="role_count" value="{{ config.roles | length }}">
-  <div class="form-card" style="margin-bottom:24px;">
-    <p class="section-title" style="margin-bottom:20px;">Available roles</p>
-    <div id="roles-list">
-      {% for role in config.roles %}
-      <div class="role-block" data-index="{{ loop.index0 }}">
-        <div class="role-num">Role {{ loop.index }}</div>
-        <button type="button" class="role-remove" onclick="removeRole(this)" title="Remove">×</button>
-        <div class="form-group">
-          <label>Role name</label>
-          <input type="text" name="role_name_{{ loop.index0 }}" value="{{ role.name or '' }}"
-                 placeholder="e.g. Literary Editors">
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <textarea name="role_desc_{{ loop.index0 }}" rows="3"
-                    placeholder="What does this role involve?">{{ role.description or '' }}</textarea>
-        </div>
-        <div class="hiring-toggle">
-          <label>
-            <span class="hiring-switch">
-              <input type="checkbox" name="role_hiring_{{ loop.index0 }}" value="1"
-                     {% if role.is_hiring %}checked{% endif %}>
-              <span class="hiring-slider"></span>
-            </span>
-            Currently hiring
-          </label>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    <button type="button" class="btn btn-secondary" onclick="addRole()">+ Add role</button>
   </div>
 
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">Save changes</button>
   </div>
 </form>
-
-<script>
-  let roleCount = document.querySelectorAll('.role-block').length;
-
-  function addRole() {
-    const list = document.getElementById('roles-list');
-    const idx  = roleCount;
-    const block = document.createElement('div');
-    block.className = 'role-block';
-    block.dataset.index = idx;
-    block.innerHTML = `
-      <div class="role-num">Role ${idx + 1}</div>
-      <button type="button" class="role-remove" onclick="removeRole(this)" title="Remove">×</button>
-      <div class="form-group">
-        <label>Role name</label>
-        <input type="text" name="role_name_${idx}" placeholder="e.g. Literary Editors">
-      </div>
-      <div class="form-group">
-        <label>Description</label>
-        <textarea name="role_desc_${idx}" rows="3" placeholder="What does this role involve?"></textarea>
-      </div>
-      <div class="hiring-toggle">
-        <label>
-          <span class="hiring-switch">
-            <input type="checkbox" name="role_hiring_${idx}" value="1">
-            <span class="hiring-slider"></span>
-          </span>
-          Currently hiring
-        </label>
-      </div>`;
-    list.appendChild(block);
-    roleCount++;
-    block.querySelector('input').focus();
-    renumberRoles();
-  }
-
-  function removeRole(btn) {
-    btn.closest('.role-block').remove();
-    renumberRoles();
-  }
-
-  function renumberRoles() {
-    document.querySelectorAll('.role-block').forEach((block, i) => {
-      block.querySelector('.role-num').textContent = `Role ${i + 1}`;
-      block.querySelector('input[type="text"]').name    = `role_name_${i}`;
-      block.querySelector('textarea').name              = `role_desc_${i}`;
-      const cb = block.querySelector('input[type="checkbox"]');
-      if (cb) cb.name = `role_hiring_${i}`;
-    });
-    roleCount = document.querySelectorAll('.role-block').length;
-    document.getElementById('role_count').value = roleCount;
-  }
-</script>
 {% endblock %}

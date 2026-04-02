@@ -599,10 +599,19 @@ _DEFAULT_APPS = {
 def staff_applications():
     config = load_staff_applications_from_r2() or _DEFAULT_APPS
     if request.method == "POST":
-        is_open = request.form.get("is_open") == "1"
+        is_open     = request.form.get("is_open") == "1"
         heading     = request.form.get("heading", "").strip()
         description = request.form.get("description", "").strip()
-        apply_link  = request.form.get("apply_link", "").strip()
+        config = {**config, "is_open": is_open, "heading": heading, "description": description}
+        save_staff_applications_to_r2(config)
+        return redirect(url_for("staff_applications") + "?saved=1")
+    return render_template("staff_applications.html", config=config)
+
+@app.route("/staff-applications/roles", methods=["GET", "POST"])
+@login_required
+def staff_applications_roles():
+    config = load_staff_applications_from_r2() or _DEFAULT_APPS
+    if request.method == "POST":
         roles = []
         role_count = int(request.form.get("role_count", 0))
         for i in range(role_count):
@@ -611,12 +620,10 @@ def staff_applications():
             if name:
                 is_hiring = request.form.get(f"role_hiring_{i}") == "1"
                 roles.append({"name": name, "description": desc, "is_hiring": is_hiring})
-        config = {"is_open": is_open, "heading": heading, "description": description,
-                  "apply_link": apply_link, "roles": roles}
+        config = {**config, "roles": roles}
         save_staff_applications_to_r2(config)
-        flash("Staff applications page updated.", "success")
-        return redirect(url_for("staff_applications"))
-    return render_template("staff_applications.html", config=config)
+        return redirect(url_for("staff_applications_roles") + "?saved=1")
+    return render_template("staff_applications_roles.html", config=config)
 
 # ---------------------------------------------------------------------------
 # Issue / member form helpers
@@ -681,8 +688,7 @@ def site_settings():
             "footer_brand":  request.form.get("footer_brand", "").strip(),
         }
         save_site_settings(config)
-        flash("Site settings saved.", "success")
-        return redirect(url_for("site_settings"))
+        return redirect(url_for("site_settings") + "?saved=1")
     return render_template("site_settings.html", config=config)
 
 # ---------------------------------------------------------------------------
@@ -705,8 +711,7 @@ def page_home():
             "banner_items":    request.form.get("banner_items", "").strip(),
         }
         save_home_config(config)
-        flash("Home page saved.", "success")
-        return redirect(url_for("page_home"))
+        return redirect(url_for("page_home") + "?saved=1")
     return render_template("page_home.html", config=config)
 
 # ---------------------------------------------------------------------------
@@ -727,8 +732,7 @@ def page_about():
             "description": request.form.get("description", "").strip(),
         }
         save_about_config(config)
-        flash("About Us page saved.", "success")
-        return redirect(url_for("page_about"))
+        return redirect(url_for("page_about") + "?saved=1")
     return render_template("page_about.html", config=config)
 
 # ---------------------------------------------------------------------------
@@ -757,8 +761,7 @@ def page_submissions():
             "closed_description": request.form.get("closed_description", "").strip(),
         }
         save_submissions_config(config)
-        flash("Submissions page saved.", "success")
-        return redirect(url_for("page_submissions"))
+        return redirect(url_for("page_submissions") + "?saved=1")
     return render_template("page_submissions.html", config=config)
 
 # ---------------------------------------------------------------------------
@@ -781,8 +784,7 @@ def page_blog():
             "form_url":    request.form.get("form_url", "").strip(),
         }
         save_blog_page_config(config)
-        flash("Blog page header saved.", "success")
-        return redirect(url_for("page_blog"))
+        return redirect(url_for("page_blog") + "?saved=1")
     return render_template("page_blog.html", config=config)
 
 # ---------------------------------------------------------------------------
@@ -805,8 +807,7 @@ def page_interviews():
             "form_url":    request.form.get("form_url", "").strip(),
         }
         save_interviews_page_config(config)
-        flash("Interviews page header saved.", "success")
-        return redirect(url_for("page_interviews"))
+        return redirect(url_for("page_interviews") + "?saved=1")
     return render_template("page_interviews.html", config=config)
 
 

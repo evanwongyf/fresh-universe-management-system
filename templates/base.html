@@ -416,7 +416,7 @@
                        or (_ft == 'blog_submission') %}
   {% set in_issues   = request.endpoint in ('issues', 'issue_new', 'issue_edit', 'issue_delete', 'issue_source')
                        or (_ft == 'issue_submission') %}
-  {% set in_staff    = request.endpoint == 'staff_applications'
+  {% set in_staff    = request.endpoint in ('staff_applications', 'staff_applications_roles')
                        or (_ft == 'staff_application') %}
   {% set in_masthead = request.endpoint in ('masthead', 'masthead_new', 'masthead_edit', 'masthead_delete') %}
   {% set in_pages    = request.endpoint in ('page_home', 'page_about', 'page_blog', 'page_interviews', 'page_submissions', 'site_settings') %}
@@ -490,6 +490,8 @@
       <span class="sidebar-label">Staff Apps</span>
       <a href="{{ url_for('staff_applications') }}"
          {% if request.endpoint == 'staff_applications' %}class="active"{% endif %}>Settings</a>
+      <a href="{{ url_for('staff_applications_roles') }}"
+         {% if request.endpoint == 'staff_applications_roles' %}class="active"{% endif %}>Role settings</a>
       <a href="{{ url_for('form_landing', form_type='staff_application') }}"
          {% if _ft == 'staff_application' and request.endpoint in ('form_landing', 'form_builder', 'form_versions', 'form_version_edit') %}class="active"{% endif %}>Form</a>
       <a href="{{ url_for('submissions_list', form_type='staff_application') }}"
@@ -573,6 +575,37 @@
   </div>
   {% endif %}
 
+  <style>
+    #save-bar {
+      position: fixed;
+      top: 68px;
+      right: 24px;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: var(--white);
+      border: 1px solid var(--gray-4);
+      border-radius: 8px;
+      padding: 8px 12px 8px 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+    }
+    #save-bar.active { display: flex; }
+    .save-status {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .save-status.unsaved { color: var(--red); }
+    .save-status.saving  { color: var(--gray-2); }
+    .save-status.saved   { color: var(--green); }
+  </style>
+
+  <!-- ── Save bar (shown on pages with a save form) ── -->
+  <div id="save-bar">
+    <span id="save-status" class="save-status saved">Saved</span>
+    <button id="save-bar-btn" type="button" class="btn btn-primary btn-sm" onclick="triggerSave()">Save changes</button>
+  </div>
+
   <script>
     function toggleProfile() {
       document.getElementById('profileMenu').classList.toggle('open');
@@ -584,6 +617,57 @@
         menu.classList.remove('open');
       }
     });
+
+    (function() {
+      const formActions = document.querySelector('.form-actions');
+      if (!formActions) return;
+      const origBtn = formActions.querySelector('button[type="submit"]');
+      if (!origBtn) return;
+      const form = origBtn.closest('form');
+      if (!form) return;
+
+      const bar    = document.getElementById('save-bar');
+      const status = document.getElementById('save-status');
+
+      // Hide the bottom save button, show the bar
+      origBtn.style.display = 'none';
+      bar.classList.add('active');
+
+      // Default state: Saved
+      status.textContent = 'Saved';
+      status.className = 'save-status saved';
+
+      // If redirected back after save, clean the URL param
+      if (new URLSearchParams(location.search).get('saved') === '1') {
+        history.replaceState(null, '', location.pathname);
+      }
+
+      function markDirty() {
+        status.textContent = 'Unsaved changes';
+        status.className = 'save-status unsaved';
+        document.getElementById('save-bar-btn').disabled = false;
+      }
+
+      function bindInputs() {
+        form.querySelectorAll('input, textarea, select').forEach(el => {
+          el.removeEventListener('input', markDirty);
+          el.removeEventListener('change', markDirty);
+          el.addEventListener('input', markDirty);
+          el.addEventListener('change', markDirty);
+        });
+      }
+      bindInputs();
+
+      const observer = new MutationObserver(bindInputs);
+      observer.observe(form, { childList: true, subtree: true });
+
+      window.triggerSave = function() {
+        status.textContent = 'Saving…';
+        status.className = 'save-status saving';
+        document.getElementById('save-bar-btn').disabled = true;
+        form.submit();
+      };
+    })();
   </script>
 </body>
 </html>
